@@ -665,7 +665,7 @@ sub _check_input_options
 	if ($opts{'mach'}) {
 	    $machine = $opts{'mach'};
 	} else {
-	    $logger->logdie ("ERROR: create_newcase must include the input argument, -mach \n");
+	    $machine = "yellowstone";
 	}
 	# Check if machine compiler option is given
 	if ($opts{'compiler'}) {
