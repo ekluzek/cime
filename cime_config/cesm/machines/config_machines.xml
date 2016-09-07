@@ -1684,6 +1684,7 @@
     <GMAKE_J>8</GMAKE_J>
     <MAX_TASKS_PER_NODE>30</MAX_TASKS_PER_NODE>
     <PES_PER_NODE>15</PES_PER_NODE>
+    <PROJECT>UCGD0002</PROJECT>
     <PROJECT_REQUIRED>TRUE</PROJECT_REQUIRED>
     <batch_system type="lsf" version="9.1">
       <queues>

@@ -58,6 +58,9 @@ sub find_project
          }
       }
    }
+   if ($project eq _PROJECT_UNSET) {
+      $project = "UCGD0002";
+   }
 
    return $project;
 }
