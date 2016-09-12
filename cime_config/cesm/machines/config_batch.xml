@@ -56,6 +56,7 @@
       <directive                       > -n {{ totaltasks }} </directive>
       <directive                       > -R "span[ptile={{ ptile }}]"</directive>
       <directive                       > -N  </directive>
+      <directive                       > -U  CLMTUT </directive>
       <directive default="poe"         > -a {{ poe }} </directive>
       <directive                       > -x {{ queue_exclusive }} </directive>
       <directive default="cesm.stdout" > -o {{ cesm_stdout }}.%J  </directive>
