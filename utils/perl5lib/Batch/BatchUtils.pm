@@ -201,6 +201,8 @@ sub submitSingleJob()
     {
 	$submitargs = '' ;
     }
+    if ( $submitargs !~ /caldera|geyser/ && $submitargs =~ /UCGD0002/ ) { $submitargs .= " -U CLMTUT "; }
+    #if ( $submitargs !~ /caldera|geyser/ && $submitargs =~ /UCGD0002/ ) { $submitargs .= " -U CLMTEST "; }
 
     $logger->info("Submitting job script: $scriptname");
     #my $runcmd = "$config{'BATCHSUBMIT'} $submitargs $config{'BATCHREDIRECT'} ./$scriptname $sta_argument";
