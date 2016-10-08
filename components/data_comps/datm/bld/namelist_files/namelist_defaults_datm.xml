@@ -578,7 +578,7 @@ Currently the following streams are supported (term definitions precede the stre
 <strm_year_end   stream="CLMCRUNCEP_V5.Solar">$DATM_CLMNCEP_YR_END  </strm_year_end>
 <strm_year_align stream="CLMCRUNCEP_V5.Solar">$DATM_CLMNCEP_YR_ALIGN</strm_year_align>
 <strm_domdir     stream="CLMCRUNCEP_V5.Solar">$DIN_LOC_ROOT_CLMFORC/atm_forcing.datm7.cruncep_qianFill.0.5d.V5.c140715</strm_domdir>
-<strm_domfil     stream="CLMCRUNCEP_V5.Solar">domain.cruncep.V5.c2013.0.5d.nc</strm_domfil>
+<strm_domfil     stream="CLMCRUNCEP_V5.Solar">domain.lnd.360x720_cruncep.130305.nc</strm_domfil>
 <strm_datdir     stream="CLMCRUNCEP_V5.Solar">$DIN_LOC_ROOT_CLMFORC/atm_forcing.datm7.cruncep_qianFill.0.5d.V5.c140715/Solar6Hrly</strm_datdir>
 <strm_datfil     stream="CLMCRUNCEP_V5.Solar">clmforc.cruncep.V5.c2014.0.5d.Solr.%ym.nc</strm_datfil>
 <strm_offset     stream="CLMCRUNCEP_V5.Solar">0</strm_offset>
