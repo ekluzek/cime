@@ -1397,7 +1397,7 @@
       <env name="MP_INFOLEVEL">2</env>
       <env name="MP_SHARED_MEMORY">yes</env>
       <env name="MP_EUILIB">us</env>
-      <env name="MP_MPILIB">$MPILIB</env>
+      <env name="MP_MPILIB" mpilib="!mpi-serial">$MPILIB</env>
       <env name="MP_STDOUTMODE">unordered</env>
       <env name="MP_RC_USE_LMC">yes</env>
     </environment_variables>
