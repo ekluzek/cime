@@ -1871,6 +1871,14 @@
     <desc>mpi run command</desc>
   </entry>
 
+  <entry id="RUN_IN_DEBUGGER">
+    <type>char</type>
+    <default_value>NONE</default_value>
+    <group>run_mpi</group>
+    <file>env_run.xml</file>
+    <desc>Debugger to run model in, if set will usually change the MPI_RUN_COMAND in a machine specific way</desc>
+  </entry>
+
   <!-- ===================================================================== -->
   <!-- definitions pelayout -->
   <!-- ===================================================================== -->
