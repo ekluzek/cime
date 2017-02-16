@@ -43,7 +43,7 @@
   <comp_archive_spec compname="rtm" compclass="rof">
     <rest_file_extension>\.r.*</rest_file_extension>
     <hist_file_extension>\.h.*.nc$</hist_file_extension>
-    <rest_history_varname>unset</rest_history_varname>
+    <rest_history_varname>locfnh</rest_history_varname>
     <rpointer>
       <rpointer_file>rpointer$NINST_STRING.rof</rpointer_file>
       <rpointer_content>$CASE.rtm$NINST_STRING.r.$DATENAME.nc</rpointer_content>
@@ -53,7 +53,7 @@
   <comp_archive_spec compname="mosart" compclass="rof">
     <rest_file_extension>\.r.*</rest_file_extension>
     <hist_file_extension>\.h.*.nc$</hist_file_extension>
-    <rest_history_varname>unset</rest_history_varname>
+    <rest_history_varname>locfnh</rest_history_varname>
     <rpointer>
       <rpointer_file>rpointer$NINST_STRING.rof</rpointer_file>
       <rpointer_content>$CASE.mosart$NINST_STRING.r.$DATENAME.nc</rpointer_content>
