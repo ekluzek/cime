@@ -1,7 +1,6 @@
 #ifdef AIX
 @PROCESS ALIAS_SIZE(805306368)
 #endif
-
 module dlnd_comp_mod
 
   ! !USES:
@@ -19,10 +18,11 @@ module dlnd_comp_mod
   use shr_strdata_mod   , only: shr_strdata_advance, shr_strdata_restWrite
   use shr_dmodel_mod    , only: shr_dmodel_gsmapcreate, shr_dmodel_rearrGGrid
   use shr_dmodel_mod    , only: shr_dmodel_translate_list, shr_dmodel_translateAV_list, shr_dmodel_translateAV
+  use shr_cal_mod       , only: shr_cal_ymdtod2string
   use seq_timemgr_mod   , only: seq_timemgr_EClockGetData, seq_timemgr_RestartAlarmIsOn
   use glc_elevclass_mod , only: glc_get_num_elevation_classes, glc_elevclass_as_string
 
-  use dlnd_shr_mod   , only: lnd_mode       ! namelist input
+  use dlnd_shr_mod   , only: datamode       ! namelist input
   use dlnd_shr_mod   , only: decomp         ! namelist input
   use dlnd_shr_mod   , only: rest_file      ! namelist input
   use dlnd_shr_mod   , only: rest_file_strm ! namelist input
@@ -56,14 +56,14 @@ module dlnd_comp_mod
 
   ! fields other than snow fields:
   character(fld_len),parameter  :: avofld_nosnow(1:nflds_nosnow) = &
-    (/ "Sl_t        ","Sl_tref     ","Sl_qref     ","Sl_avsdr    ","Sl_anidr    ", &
+       (/ "Sl_t        ","Sl_tref     ","Sl_qref     ","Sl_avsdr    ","Sl_anidr    ", &
        "Sl_avsdf    ","Sl_anidf    ","Sl_snowh    ","Fall_taux   ","Fall_tauy   ", &
        "Fall_lat    ","Fall_sen    ","Fall_lwup   ","Fall_evap   ","Fall_swnet  ", &
        "Sl_landfrac ","Sl_fv       ","Sl_ram1     ",                               &
        "Fall_flxdst1","Fall_flxdst2","Fall_flxdst3","Fall_flxdst4"                 /)
 
   character(fld_len),parameter  :: avifld_nosnow(1:nflds_nosnow) = &
-    (/ "t           ","tref        ","qref        ","avsdr       ","anidr       ", &
+       (/ "t           ","tref        ","qref        ","avsdr       ","anidr       ", &
        "avsdf       ","anidf       ","snowh       ","taux        ","tauy        ", &
        "lat         ","sen         ","lwup        ","evap        ","swnet       ", &
        "lfrac       ","fv          ","ram1        ",                               &
@@ -211,12 +211,12 @@ CONTAINS
     call shr_sys_flush(logunit)
 
     ! create a data model global seqmap (gsmap) given the data model global grid sizes
-    ! NOTE: gsmap is initialized using the decomp read in from the docn_in namelist
+    ! NOTE: gsmap is initialized using the decomp read in from the dlnd_in namelist
     ! (which by default is "1d")
     call shr_dmodel_gsmapcreate(gsmap,SDLND%nxg*SDLND%nyg,compid,mpicom,decomp)
     lsize = mct_gsmap_lsize(gsmap,mpicom)
 
-    ! create a rearranger from the data model SDOCN%gsmap to gsmap
+    ! create a rearranger from the data model DLND%gsmap to gsmap
     call mct_rearr_init(SDLND%gsmap, gsmap, mpicom, rearr)
 
     call t_stopf('dlnd_initgsmaps')
@@ -300,7 +300,7 @@ CONTAINS
     call t_adj_detailf(+2)
     call dlnd_comp_run(EClock, x2l, l2x, &
          SDLND, gsmap, ggrid, mpicom, compid, my_task, master_task, &
-         inst_suffix, logunit, read_restart)
+         inst_suffix, logunit)
     call t_adj_detailf(-2)
 
     if (my_task == master_task) write(logunit,F00) 'dlnd_comp_init done'
@@ -313,7 +313,7 @@ CONTAINS
   !===============================================================================
   subroutine dlnd_comp_run(EClock, x2l, l2x, &
        SDLND, gsmap, ggrid, mpicom, compid, my_task, master_task, &
-       inst_suffix, logunit, read_restart, case_name)
+       inst_suffix, logunit, case_name)
 
     ! !DESCRIPTION:  run method for dlnd model
     implicit none
@@ -331,7 +331,6 @@ CONTAINS
     integer(IN)            , intent(in)    :: master_task      ! task number of master task
     character(len=*)       , intent(in)    :: inst_suffix      ! char string associated with instance
     integer(IN)            , intent(in)    :: logunit          ! logging unit number
-    logical                , intent(in)    :: read_restart     ! start from restart
     character(CL)          , intent(in), optional :: case_name ! case name
 
     !--- local ---
@@ -343,6 +342,7 @@ CONTAINS
     real(R8)      :: dt                    ! timestep
     integer(IN)   :: nu                    ! unit number
     logical       :: write_restart         ! restart now
+    character(len=18) :: date_str
 
     character(*), parameter :: F00   = "('(dlnd_comp_run) ',8a)"
     character(*), parameter :: F04   = "('(dlnd_comp_run) ',2a,2i8,'s')"
@@ -385,18 +385,32 @@ CONTAINS
 
     call t_stopf('dlnd')
 
+    !-------------------------------------------------
+    ! Determine data model behavior based on the mode
+    !-------------------------------------------------
+
+    call t_startf('dlnd_datamode')
+    select case (trim(datamode))
+
+    case('COPYALL')
+       ! do nothing extra
+
+    end select
+    call t_stopf('dlnd_datamode')
+
     !--------------------
     ! Write restart
     !--------------------
 
     if (write_restart) then
        call t_startf('dlnd_restart')
-       write(rest_file,"(2a,i4.4,a,i2.2,a,i2.2,a,i5.5,a)") &
-            trim(case_name), '.dlnd'//trim(inst_suffix)//'.r.', &
-            yy,'-',mm,'-',dd,'-',currentTOD,'.nc'
-       write(rest_file_strm,"(2a,i4.4,a,i2.2,a,i2.2,a,i5.5,a)") &
-            trim(case_name), '.dlnd'//trim(inst_suffix)//'.rs1.', &
-            yy,'-',mm,'-',dd,'-',currentTOD,'.bin'
+       call shr_cal_ymdtod2string(date_str, yy,mm,dd,currentTOD)
+       write(rest_file,"(6a)") &
+            trim(case_name), '.dlnd',trim(inst_suffix),'.r.', &
+            trim(date_str),'.nc'
+       write(rest_file_strm,"(6a)") &
+            trim(case_name), '.dlnd',trim(inst_suffix),'.rs1.', &
+            trim(date_str),'.bin'
        if (my_task == master_task) then
           nu = shr_file_getUnit()
           open(nu,file=trim(rpfile)//trim(inst_suffix),form='formatted')

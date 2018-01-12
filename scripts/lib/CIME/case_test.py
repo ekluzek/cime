@@ -47,7 +47,7 @@ def case_test(case, testname=None, reset=False):
         testname = case.get_value('TESTCASE')
 
     expect(testname is not None, "testname argument not resolved")
-    logging.warn("Running test for {}".format(testname))
+    logging.warning("Running test for {}".format(testname))
 
     _set_up_signal_handlers()
 
@@ -70,7 +70,5 @@ def case_test(case, testname=None, reset=False):
         test._resetup_case(RUN_PHASE)
         return True
     success = test.run()
-
-    case.set_value("RUN_WITH_SUBMIT", False)
 
     return success

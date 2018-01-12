@@ -9,7 +9,7 @@ from CIME.preview_namelists import create_dirs, create_namelists
 from CIME.XML.env_mach_pes  import EnvMachPes
 from CIME.XML.machines      import Machines
 from CIME.BuildTools.configure import configure
-from CIME.utils             import get_cime_root, run_and_log_case_status, get_model
+from CIME.utils             import get_cime_root, run_and_log_case_status, get_model, get_batch_script_for_job
 from CIME.test_status       import *
 
 import shutil
@@ -49,7 +49,7 @@ def _build_usernl_files(case, model, comp):
         nlfile = "user_nl_{}".format(comp)
         model_nl = os.path.join(model_dir, nlfile)
         if ninst > 1:
-            for inst_counter in xrange(1, ninst+1):
+            for inst_counter in range(1, ninst+1):
                 inst_nlfile = "{}_{:04d}".format(nlfile, inst_counter)
                 if not os.path.exists(inst_nlfile):
                     # If there is a user_nl_foo in the case directory, copy it
@@ -70,36 +70,26 @@ def _case_setup_impl(case, caseroot, clean=False, test_mode=False, reset=False):
 ###############################################################################
     os.chdir(caseroot)
 
-    cimeroot = get_cime_root(case)
-
     # Check that $DIN_LOC_ROOT exists - and abort if not a namelist compare tests
     din_loc_root = case.get_value("DIN_LOC_ROOT")
     testcase     = case.get_value("TESTCASE")
     expect(not (not os.path.isdir(din_loc_root) and testcase != "SBN"),
            "inputdata root is not a directory: {}".format(din_loc_root))
 
-    # Check that userdefine settings are specified before expanding variable
-    for vid, value in case:
-        expect(not (type(value) is str and "USERDEFINED_required_build" in value),
-               "Parameter '{}' must be defined".format(vid))
-
     # Remove batch scripts
     if reset or clean:
-        if os.path.exists("case.run"):
-            os.remove("case.run")
+        case_run, case_test = get_batch_script_for_job("case.run"), get_batch_script_for_job("case.test")
+        if os.path.exists(case_run):
+            os.remove(case_run)
 
         if not test_mode:
             # rebuild the models (even on restart)
             case.set_value("BUILD_COMPLETE", False)
 
             # backup and then clean test script
-            if os.path.exists("case.test"):
-                os.remove("case.test")
-                logger.info("Successfully cleaned test script case.test")
-
-            if os.path.exists("case.testdriver"):
-                os.remove("case.testdriver")
-                logger.info("Successfully cleaned test script case.testdriver")
+            if os.path.exists(case_test):
+                os.remove(case_test)
+                logger.info("Successfully cleaned test script {}".format(case_test))
 
         logger.info("Successfully cleaned batch script case.run")
 
@@ -122,14 +112,16 @@ def _case_setup_impl(case, caseroot, clean=False, test_mode=False, reset=False):
         # Set tasks to 1 if mpi-serial library
         if mpilib == "mpi-serial":
             for vid, value in case:
-                if vid.startswith("NTASKS_") and value != 1:
+                if vid.startswith("NTASKS") and value != 1:
                     case.set_value(vid, 1)
 
         # Check ninst.
         # In CIME there can be multiple instances of each component model (an ensemble) NINST is the instance of that component.
         multi_driver = case.get_value("MULTI_DRIVER")
+        nthrds = 1
         for comp in models:
             ntasks = case.get_value("NTASKS_{}".format(comp))
+            nthrds = max(nthrds,case.get_value("NTHRDS_{}".format(comp)))
             if comp == "CPL":
                 continue
             ninst  = case.get_value("NINST_{}".format(comp))
@@ -144,12 +136,17 @@ def _case_setup_impl(case, caseroot, clean=False, test_mode=False, reset=False):
                         ntasks = ninst
                     else:
                         expect(False, "NINST_{} value {:d} greater than NTASKS_{} {:d}".format(comp, ninst, comp, ntasks))
-                case.set_value("NTASKS_PER_INST_{}".format(comp), ntasks / ninst)
+                case.set_value("NTASKS_PER_INST_{}".format(comp), int(ntasks / ninst))
+        if nthrds > 1:
+            case.set_value("BUILD_THREADED",True)
 
-        if os.path.exists("case.run"):
+        if os.path.exists(get_batch_script_for_job("case.run")):
             logger.info("Machine/Decomp/Pes configuration has already been done ...skipping")
 
             case.initialize_derived_attributes()
+
+            case.set_value("SMP_PRESENT", case.get_build_threaded())
+
         else:
             check_pelayouts_require_rebuild(case, models)
 
@@ -157,15 +154,13 @@ def _case_setup_impl(case, caseroot, clean=False, test_mode=False, reset=False):
 
             case.flush()
             check_lockedfiles(case)
-            env_mach_pes = case.get_env("mach_pes")
-            pestot = env_mach_pes.get_total_tasks(models)
-            logger.debug("at update TOTALPES = {}".format(pestot))
-            case.set_value("TOTALPES", pestot)
-            thread_count = env_mach_pes.get_max_thread_count(models)
-            cost_pes = env_mach_pes.get_cost_pes(pestot, thread_count, machine=case.get_value("MACH"))
-            case.set_value("COST_PES", cost_pes)
 
             case.initialize_derived_attributes()
+
+            cost_per_node = 16 if case.get_value("MACH") == "yellowstone" else case.get_value("MAX_MPITASKS_PER_NODE")
+            case.set_value("COST_PES", case.num_nodes * cost_per_node)
+            case.set_value("TOTALPES", case.total_tasks)
+            case.set_value("SMP_PRESENT", case.get_build_threaded())
 
             # create batch files
             logger.info("Creating batch script case.run")
@@ -200,7 +195,8 @@ def _case_setup_impl(case, caseroot, clean=False, test_mode=False, reset=False):
             logger.debug("Building {} usernl files".format(model))
             _build_usernl_files(case, model, comp)
             if comp == "cism":
-                run_cmd_no_fail("{}/../components/cism/cime_config/cism.template {}".format(cimeroot, caseroot))
+                glcroot = case.get_value("COMP_ROOT_DIR_GLC")
+                run_cmd_no_fail("{}/cime_config/cism.template {}".format(glcroot, caseroot))
 
         _build_usernl_files(case, "drv", "cpl")
 
@@ -216,8 +212,8 @@ def _case_setup_impl(case, caseroot, clean=False, test_mode=False, reset=False):
 
         # Record env information
         env_module = case.get_env("mach_specific")
-        env_module.make_env_mach_specific_file(compiler, debug, mpilib, "sh")
-        env_module.make_env_mach_specific_file(compiler, debug, mpilib, "csh")
+        env_module.make_env_mach_specific_file("sh", case)
+        env_module.make_env_mach_specific_file("csh", case)
         env_module.save_all_env_info("software_environment.txt")
 
 ###############################################################################

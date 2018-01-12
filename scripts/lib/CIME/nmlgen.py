@@ -123,11 +123,11 @@ class NamelistGenerator(object):
             # over later settings).
             self._namelist.merge_nl(new_namelist)
 
-        if skip_entry_loop is None:
+        if not skip_entry_loop:
             for entry in entry_nodes:
-                self.add_default(entry.get("id"))
+                self.add_default(self._definition.get(entry, "id"))
         else:
-            return entry_nodes
+            return [self._definition.get(entry, "id") for entry in entry_nodes]
 
     @staticmethod
     def quote_string(string):
@@ -329,7 +329,7 @@ class NamelistGenerator(object):
                 if self._case.get_value('GLC_NEC') == 0:
                     glc_nec_indices = [0]
                 else:
-                    glc_nec_indices = range(self._case.get_value('GLC_NEC'))
+                    glc_nec_indices = list(range(self._case.get_value('GLC_NEC')))
                 glc_nec_indices.append(glc_nec_indices[-1] + 1)
                 glc_nec_indices.pop(0)
                 for i in glc_nec_indices:
@@ -570,7 +570,7 @@ class NamelistGenerator(object):
                         continue
                     file_path = self.set_abs_file_path(file_path)
                     if not os.path.exists(file_path):
-                        logger.warn("File not found: {} = {}, will attempt to download in check_input_data phase".format(name, literal))
+                        logger.warning("File not found: {} = {}, will attempt to download in check_input_data phase".format(name, literal))
                     current_literals[i] = string_to_character_literal(file_path)
                 current_literals = compress_literal_list(current_literals)
 
