@@ -2668,9 +2668,17 @@
  <entry id="MODEL_VERSION">
    <type>char</type>
    <default_value>unknown</default_value>
-   <group>case_der</group>
-   <file>env_case.xml</file>
+   <group>build_deriver</group>
+   <file>env_build.xml</file>
    <desc>Apparent version of the model used for this case</desc>
+ </entry>
+
+ <entry id="REQUIRED_MODEL_VERSION">
+   <type>char</type>
+   <default_value>UNSET</default_value>
+   <group>build_def</group>
+   <file>env_build.xml</file>
+   <desc>If set to something besides the default of UNSET, require that MODEL_VERSION equal this for the build to run</desc>
  </entry>
 
  <entry id="PROJECT_REQUIRED">
