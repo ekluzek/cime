@@ -30,12 +30,12 @@ module prep_glc_mod
   !--------------------------------------------------------------------------
 
   public :: prep_glc_init
-  public :: prep_glc_mrg
+  public :: prep_glc_mrg_l2g
   public :: prep_glc_mrg_o2g
 
-  public :: prep_glc_accum
+  public :: prep_glc_accum_l2g
   public :: prep_glc_accum_o2g
-  public :: prep_glc_accum_avg
+  public :: prep_glc_accum_avg_l2g
   public :: prep_glc_accum_avg_o2g
 
   public :: prep_glc_calc_o2x_gx
@@ -403,7 +403,7 @@ contains
 
   !================================================================================================
 
-  subroutine prep_glc_accum(timer)
+  subroutine prep_glc_accum_l2g(timer)
 
     !---------------------------------------------------------------
     ! Description
@@ -415,7 +415,7 @@ contains
     ! Local Variables
     integer :: eli
     type(mct_avect), pointer :: l2x_lx
-    character(*), parameter :: subname = '(prep_glc_accum)'
+    character(*), parameter :: subname = '(prep_glc_accum_l2g)'
     !---------------------------------------------------------------
 
     call t_drvstartf (trim(timer),barrier=mpicom_CPLID)
@@ -430,7 +430,7 @@ contains
     l2gacc_lx_cnt = l2gacc_lx_cnt + 1
     call t_drvstopf  (trim(timer))
 
-  end subroutine prep_glc_accum
+  end subroutine prep_glc_accum_l2g
 
   !================================================================================================
 
@@ -461,7 +461,7 @@ contains
 
   !================================================================================================
 
-  subroutine prep_glc_accum_avg(timer)
+  subroutine prep_glc_accum_avg_l2g(timer)
 
     !---------------------------------------------------------------
     ! Description
@@ -472,7 +472,7 @@ contains
     !
     ! Local Variables
     integer :: eli
-    character(*), parameter :: subname = '(prep_glc_accum_avg)'
+    character(*), parameter :: subname = '(prep_glc_accum_avg_l2g)'
     !---------------------------------------------------------------
 
     call t_drvstartf (trim(timer),barrier=mpicom_CPLID)
@@ -484,7 +484,7 @@ contains
     l2gacc_lx_cnt = 0
     call t_drvstopf  (trim(timer))
 
-  end subroutine prep_glc_accum_avg
+  end subroutine prep_glc_accum_avg_l2g
 
   !================================================================================================
 
@@ -502,7 +502,7 @@ contains
     ! Local Variables
     integer :: egi, eoi, efi
     type(mct_avect), pointer :: x2g_gx
-    character(*), parameter  :: subname = '(prep_glc_mrg)'
+    character(*), parameter  :: subname = '(prep_glc_mrg_o2g)'
     !---------------------------------------------------------------
 
     call t_drvstartf (trim(timer_mrg),barrier=mpicom_CPLID)
@@ -536,7 +536,7 @@ contains
 
     integer       :: num_flux_fields_from_lnd, num_flux_fields_from_ocn
     integer       :: num_state_fields_from_lnd, num_state_fields_from_ocn
-    integer       :: nflds
+    integer       :: nflds, nflds_from_ocn
     integer       :: i,n
     integer       :: mrgstr_index
     integer       :: index_o2x
@@ -557,6 +557,7 @@ contains
     num_state_fields_from_lnd = shr_string_listGetNum(trim(seq_flds_x2g_states_from_lnd))
     num_flux_fields_from_ocn = shr_string_listGetNum(trim(seq_flds_x2g_fluxes_from_ocn))
     num_state_fields_from_ocn = shr_string_listGetNum(trim(seq_flds_x2g_states_from_ocn))
+    nflds_from_ocn = num_flux_fields_from_ocn + num_state_fields_from_ocn
 
     if (first_time) then
        nflds = mct_aVect_nRattr(x2g_g)
@@ -568,7 +569,7 @@ contains
           call shr_sys_abort(subname//' ERROR: nflds /= num_flux_fields + num_state_fields')
        end if
 
-       allocate(mrgstr(nflds))
+       allocate(mrgstr(nflds_from_ocn))
     end if
 
     mrgstr_index = 1
@@ -614,7 +615,7 @@ contains
     if (first_time) then
        if (iamroot) then
           write(logunit,'(A)') subname//' Summary:'
-          do i = 1,nflds
+          do i = 1,nflds_from_ocn
              write(logunit,'(A)') trim(mrgstr(i))
           enddo
        endif
@@ -627,7 +628,7 @@ contains
 
   !================================================================================================
 
-  subroutine prep_glc_mrg(infodata, fractions_gx, timer_mrg)
+  subroutine prep_glc_mrg_l2g(infodata, fractions_gx, timer_mrg)
 
     !---------------------------------------------------------------
     ! Description
@@ -641,7 +642,7 @@ contains
     ! Local Variables
     integer :: egi, eli, efi
     type(mct_avect), pointer :: x2g_gx
-    character(*), parameter  :: subname = '(prep_glc_mrg)'
+    character(*), parameter  :: subname = '(prep_glc_mrg_l2g)'
     !---------------------------------------------------------------
 
     call t_drvstartf (trim(timer_mrg),barrier=mpicom_CPLID)
@@ -655,7 +656,7 @@ contains
     enddo
     call t_drvstopf  (trim(timer_mrg))
 
-  end subroutine prep_glc_mrg
+  end subroutine prep_glc_mrg_l2g
 
   !================================================================================================
 
@@ -679,7 +680,7 @@ contains
 
     integer       :: num_flux_fields_from_lnd, num_flux_fields_from_ocn
     integer       :: num_state_fields_from_lnd, num_state_fields_from_ocn
-    integer       :: nflds
+    integer       :: nflds, nflds_from_lnd
     integer       :: i,n
     integer       :: mrgstr_index
     integer       :: index_l2x
@@ -701,6 +702,7 @@ contains
     num_state_fields_from_lnd = shr_string_listGetNum(trim(seq_flds_x2g_states_from_lnd))
     num_flux_fields_from_ocn = shr_string_listGetNum(trim(seq_flds_x2g_fluxes_from_ocn))
     num_state_fields_from_ocn = shr_string_listGetNum(trim(seq_flds_x2g_states_from_ocn))
+    nflds_from_lnd = num_flux_fields_from_lnd+num_state_fields_from_lnd
 
     if (first_time) then
        nflds = mct_aVect_nRattr(x2g_g)
@@ -712,7 +714,7 @@ contains
           call shr_sys_abort(subname//' ERROR: nflds /= num_flux_fields + num_state_fields')
        end if
 
-       allocate(mrgstr(nflds))
+       allocate(mrgstr(nflds_from_lnd))
     end if
 
     mrgstr_index = 1
@@ -770,7 +772,7 @@ contains
     if (first_time) then
        if (iamroot) then
           write(logunit,'(A)') subname//' Summary:'
-          do i = 1,nflds
+          do i = 1,nflds_from_lnd
              write(logunit,'(A)') trim(mrgstr(i))
           enddo
        endif

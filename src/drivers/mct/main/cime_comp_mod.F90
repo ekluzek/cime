@@ -361,7 +361,7 @@ module cime_comp_mod
   logical  :: lnd_c2_glc             ! .true.  => lnd to glc coupling on
   logical  :: ocn_c2_atm             ! .true.  => ocn to atm coupling on
   logical  :: ocn_c2_ice             ! .true.  => ocn to ice coupling on
-  logical  :: ocn_c2_glc             ! .true.  => ocn to glc coupling on
+  logical  :: ocn_c2_glc             ! .true.  => two-way ocn-glc coupling
   logical  :: ocn_c2_wav             ! .true.  => ocn to wav coupling on
   logical  :: ice_c2_atm             ! .true.  => ice to atm coupling on
   logical  :: ice_c2_ocn             ! .true.  => ice to ocn coupling on
@@ -1394,7 +1394,8 @@ contains
          glc_nx=glc_nx, glc_ny=glc_ny,          &
          ocn_nx=ocn_nx, ocn_ny=ocn_ny,          &
          wav_nx=wav_nx, wav_ny=wav_ny,          &
-         atm_aero=atm_aero )
+         atm_aero=atm_aero,                     &
+         ocn_c2_glc=ocn_c2_glc )
 
     ! derive samegrid flags
 
@@ -1436,7 +1437,6 @@ contains
     lnd_c2_glc = .false.
     ocn_c2_atm = .false.
     ocn_c2_ice = .false.
-    ocn_c2_glc = .false.
     ocn_c2_wav = .false.
     ice_c2_atm = .false.
     ice_c2_ocn = .false.
@@ -1465,7 +1465,6 @@ contains
        if (atm_prognostic) ocn_c2_atm = .true.
        if (atm_present   ) ocn_c2_atm = .true. ! needed for aoflux calc if aoflux=atm
        if (ice_prognostic) ocn_c2_ice = .true.
-       if (glc_prognostic) ocn_c2_glc = .true.
        if (wav_prognostic) ocn_c2_wav = .true.
     endif
     if (ice_present) then
@@ -1480,7 +1479,7 @@ contains
     endif
     if (glc_present) then
        if (glclnd_present .and. lnd_prognostic) glc_c2_lnd = .true.
-       if (glcocn_present .and. ocn_prognostic) glc_c2_ocn = .true.
+       if (ocn_prognostic .and. (glcocn_present .or. ocn_c2_glc) ) glc_c2_ocn = .true.
        if (glcice_present .and. iceberg_prognostic) glc_c2_ice = .true.
     endif
     if (wav_present) then
@@ -2795,6 +2794,11 @@ contains
              call component_diag(infodata, ocn, flow='c2x', comment= 'recv ocn', &
                   info_debug=info_debug, timer_diag='CPL:ocnpost_diagav')
 
+             ! Accumulate glc inputs
+             if (ocn_c2_glc) then
+                call prep_glc_accum_o2g(timer='CPL:ocnpost_acco2g' )
+             endif
+
              if (drv_threading) call seq_comm_setnthreads(nthreads_GLOID)
              call t_drvstopf  ('CPL:OCNPOSTT',cplrun=.true.)
           endif
@@ -2970,7 +2974,7 @@ contains
                 call prep_rof_accum(timer='CPL:lndpost_accl2r')
              endif
              if (lnd_c2_glc) then
-                call prep_glc_accum(timer='CPL:lndpost_accl2g' )
+                call prep_glc_accum_l2g(timer='CPL:lndpost_accl2g' )
              endif
 
              if (drv_threading) call seq_comm_setnthreads(nthreads_GLOID)
@@ -2993,30 +2997,57 @@ contains
              call t_drvstartf ('CPL:GLCPREP',cplrun=.true.,barrier=mpicom_CPLID)
              if (drv_threading) call seq_comm_setnthreads(nthreads_CPLID)
 
-             if (lnd_c2_glc) then
-                ! NOTE - only create appropriate input to glc if the avg_alarm is on
+             !if (lnd_c2_glc) then
+             !   ! NOTE - only create appropriate input to glc if the avg_alarm is on
 
-                if (glcrun_avg_alarm) then
-                   call prep_glc_accum_avg(timer='CPL:glcprep_avg')
+             !   if (glcrun_avg_alarm) then
+             !      call prep_glc_accum_avg_l2g(timer='CPL:glcprep_avg')
+             !      lnd2glc_averaged_now = .true.
+
+             !      ! Note that l2x_gx is obtained from mapping the module variable l2gacc_lx
+             !      call prep_glc_calc_l2x_gx(fractions_lx, timer='CPL:glcprep_lnd2glc')
+
+             !      call prep_glc_mrg_l2g(infodata, fractions_gx, timer_mrg='CPL:glcprep_mrgx2g')
+
+             !      call component_diag(infodata, glc, flow='x2c', comment='send glc', &
+             !           info_debug=info_debug, timer_diag='CPL:glcprep_diagav')
+
+             !   else if (.not. ocn_c2_glc) then
+             !      call prep_glc_zero_fields()
+             !   end if  ! glcrun_avg_alarm
+             !end if  ! lnd_c2_glc
+
+             !if (ocn_c2_glc) then
+             !   call prep_glc_calc_o2x_gx(fractions_ox, timer='CPL:glcprep_ocn2glc')
+             !   call prep_glc_mrg_o2g(infodata, fractions_gx, timer_mrg='CPL:glcprep_mrgx2g')
+             !endif ! ocn_c2_glc
+
+             if (glcrun_avg_alarm) then
+
+                if (lnd_c2_glc) then
+                   call prep_glc_accum_avg_l2g(timer='CPL:glcprep_avg_l2g')
                    lnd2glc_averaged_now = .true.
 
                    ! Note that l2x_gx is obtained from mapping the module variable l2gacc_lx
                    call prep_glc_calc_l2x_gx(fractions_lx, timer='CPL:glcprep_lnd2glc')
 
-                   call prep_glc_mrg(infodata, fractions_gx, timer_mrg='CPL:glcprep_mrgx2g')
+                   call prep_glc_mrg_l2g(infodata, fractions_gx, timer_mrg='CPL:glcprep_mrgx2g')
+                endif
 
-                   call component_diag(infodata, glc, flow='x2c', comment='send glc', &
-                        info_debug=info_debug, timer_diag='CPL:glcprep_diagav')
+                if (ocn_c2_glc) then
+                   call prep_glc_accum_avg_o2g(timer='CPL:glcprep_avg_o2g')
+                   call prep_glc_calc_o2x_gx(fractions_ox, timer='CPL:glcprep_ocn2glc')
+                   call prep_glc_mrg_o2g(infodata, fractions_gx, timer_mrg='CPL:glcprep_mrgx2g')
+                endif
 
-                else if (.not. ocn_c2_glc) then
-                   call prep_glc_zero_fields()
-                end if  ! glcrun_avg_alarm
-             end if  ! lnd_c2_glc
+                if (lnd_c2_glc .or. ocn_c2_glc) then
+                    call component_diag(infodata, glc, flow='x2c', comment='send glc', &
+                          info_debug=info_debug, timer_diag='CPL:glcprep_diagav')
+                endif
 
-             if (ocn_c2_glc) then
-                call prep_glc_calc_o2x_gx(fractions_ox, timer='CPL:glcprep_ocn2glc')
-                call prep_glc_mrg_o2g(infodata, fractions_gx, timer_mrg='CPL:glcprep_mrgx2g')
-             endif ! ocn_c2_glc
+             else if (lnd_c2_glc .or. ocn_c2_glc) then
+                call prep_glc_zero_fields()
+             endif
 
              if (drv_threading) call seq_comm_setnthreads(nthreads_GLOID)
              call t_drvstopf  ('CPL:GLCPREP',cplrun=.true.)
@@ -3642,6 +3673,11 @@ contains
 
              call component_diag(infodata, ocn, flow='c2x', comment= 'recv ocn', &
                   info_debug=info_debug, timer_diag='CPL:ocnpost_diagav')
+
+             ! Accumulate glc inputs
+             if (ocn_c2_glc) then
+                call prep_glc_accum_o2g(timer='CPL:ocnpost_acco2g' )
+             endif
 
              if (drv_threading) call seq_comm_setnthreads(nthreads_GLOID)
              call t_drvstopf  ('CPL:OCNPOST',cplrun=.true.)
