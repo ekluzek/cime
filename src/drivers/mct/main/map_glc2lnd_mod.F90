@@ -44,6 +44,9 @@ module map_glc2lnd_mod
   private :: make_aVect_frac_times_icemask
 
   character(len=*), parameter :: frac_times_icemask_field = 'Sg_frac_times_icemask'
+!!++ml+ktc
+  real(r8), parameter :: frac_virtual_a0 = 0.05
+!!--ml-ktc
 
 contains
 
@@ -346,10 +349,20 @@ contains
     call mct_aVect_exportRattr(glc_topo_this_ec_l, topo_field, topo_l)
 
     ! Set topo field for virtual columns
-    topo_virtual = glc_mean_elevation_virtual(elev_class)
-    where (frac_l <= 0)
-       topo_l = topo_virtual
-    end where
+
+!!++ml+ktc
+    if (elev_class > 0) then    ! do not apply this logic to the bare ice category
+       topo_virtual = glc_mean_elevation_virtual(elev_class)
+       topo_l = (frac_virtual_a0 * topo_virtual + frac_l * topo_l) / (frac_virtual_a0 + frac_l)
+    endif
+
+
+!    topo_virtual = glc_mean_elevation_virtual(elev_class)
+!    where (frac_l <= 0)
+!       topo_l = topo_virtual
+!    end where
+!!--ml-ktc
+
 
     ! Put updated field back in attribute vector
     call mct_aVect_importRattr(glc_topo_this_ec_l, topo_field, topo_l)

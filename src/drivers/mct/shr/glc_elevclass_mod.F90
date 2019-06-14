@@ -281,7 +281,13 @@ contains
           ! class to be very high).
 
           if (glc_nec > 1) then
-             mean_elevation = 2._r8 * topomax(elevation_class - 1) - topomax(elevation_class - 2)
+!!++ml
+             !! ml: set mean elev to small value above lower bound
+             mean_elevation = topomax(elevation_class - 1) + 1.0_r8
+
+!!             mean_elevation = 2._r8 * topomax(elevation_class - 1) - topomax(elevation_class - 2)
+!!--ml
+
           else
              ! entirely arbitrary
              mean_elevation = 1000._r8
