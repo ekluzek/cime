@@ -131,29 +131,6 @@ ifeq (,$(SHAREDPATH))
   INSTALL_SHAREDPATH = $(EXEROOT)/$(SHAREDPATH)
 endif
 
-# Decide whether to use a C++ or Fortran linker, based on whether we
-# are using any C++ code and the compiler-dependent CXX_LINKER variable
-ifeq ($(USE_CXX), TRUE)
-  # The following is essentially an "if... elseif... else", but gmake
-  # 3.80 and earlier doesn't support elseif
-  ifeq ($(CXX_LINKER), CXX)
-    LD := $(MPICXX)
-  endif
-  ifeq ($(CXX_LINKER), FORTRAN)
-    LD := $(MPIFC)
-  endif
-endif
-# Use this if LD has not already been defined.
-ifeq ($(origin LD), default)
-  ifeq ($(strip $(MPILIB)),mpi-serial)
-    LD := $(SFC)
-  else
-    LD := $(MPIFC)
-  endif
-endif
-
-
-
 ifeq ($(USE_CXX), TRUE)
   ifeq ($(SUPPORTS_CXX), FALSE)
     $(error Fatal attempt to include C++ code on a compiler/machine combo that has not been set up to support C++)
@@ -376,7 +353,6 @@ ifeq ($(ULIBDEP),$(null))
     endif
     ifeq ($(LND_PRESENT),TRUE)
       ULIBDEP += $(LNDLIBDIR)/$(LNDLIB)
-      INCLDIR += -I$(LNDOBJDIR)
       CPPDEFS += -DLND_PRESENT
     endif
     ifeq ($(OCN_PRESENT),TRUE)
@@ -458,6 +434,20 @@ else
     LIB_MPI := $(MPI_PATH)/lib
   endif
 endif
+LD := $(MPIFC)
+# Decide whether to use a C++ or Fortran linker, based on whether we
+# are using any C++ code and the compiler-dependent CXX_LINKER variable
+ifeq ($(USE_CXX), TRUE)
+  # The following is essentially an "if... elseif... else", but gmake
+  # 3.80 and earlier doesn't support elseif
+  ifeq ($(CXX_LINKER), CXX)
+    LD := $(MPICXX)
+  endif
+  ifeq ($(CXX_LINKER), FORTRAN)
+    LD := $(MPIFC)
+  endif
+endif
+
 CSM_SHR_INCLUDE:=$(INSTALL_SHAREDPATH)/$(COMP_INTERFACE)/$(ESMFDIR)/$(NINST_VALUE)/include
 # This is needed so that dependancies are found
 VPATH+=$(CSM_SHR_INCLUDE)
@@ -563,10 +553,10 @@ ifeq ($(MODEL),cam)
   # Until mods are made to read the data from files, just remove optimization from
   # their compilation.
 rrtmg_lw_k_g.o: rrtmg_lw_k_g.f90
-	$(FC) -c $(FPPFLAGS) $(INCLDIR) $(INCS) $(FREEFLAGS) $(FFLAGS_NOOPT) $<
+	$(FC) -c $(FPPFLAGS) $(INCLDIR) $(INCS) $(FREEFLAGS) $(FFLAGS) $(FFLAGS_NOOPT) $<
 
 rrtmg_sw_k_g.o: rrtmg_sw_k_g.f90
-	$(FC) -c $(FPPFLAGS) $(INCLDIR) $(INCS) $(FREEFLAGS) $(FFLAGS_NOOPT) $<
+	$(FC) -c $(FPPFLAGS) $(INCLDIR) $(INCS) $(FREEFLAGS) $(FFLAGS) $(FFLAGS_NOOPT) $<
 
 
 ifdef COSP_LIBDIR
@@ -849,7 +839,9 @@ else
     INCLUDE_DIR = $(INSTALL_SHAREDPATH)/$(COMP_INTERFACE)/$(ESMFDIR)/include
   endif
 endif
-
+ifeq ($(LND_PRESENT),TRUE)
+  INCLDIR += -I$(LNDOBJDIR)
+endif
 ifeq ($(COMP_GLC), cism)
   ULIBDEP += $(CISM_LIBDIR)/libglimmercismfortran.a
   ifeq ($(CISM_USE_TRILINOS), TRUE)
@@ -861,7 +853,9 @@ ifeq ($(OCN_SUBMODEL),moby)
 endif
 
 ifdef COSP_LIBDIR
-  ULIBDEP += $(COSP_LIBDIR)/libcosp.a
+  ifeq ($(CIME_MODEL),cesm)
+    ULIBDEP += $(COSP_LIBDIR)/libcosp.a
+  endif
 endif
 
 
