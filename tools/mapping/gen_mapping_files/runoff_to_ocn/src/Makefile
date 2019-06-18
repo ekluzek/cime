@@ -37,8 +37,8 @@ VPATH    := $(shell pwd)
 SRCFILE  := NONE
 SRCS     := NONE
 DEPGEN   := ./makdep  # an externally provided dependency generator
-#compile_threaded := true
-compile_threaded := false
+#compile_threaded := TRUE
+compile_threaded := FALSE
 
 ifneq ($(VPATH),.)
   # this variable was specified on cmd line or in an env var
@@ -134,7 +134,7 @@ endif
 
 .PHONY: clean
 clean:
-	$(RM) -f *.f *.f90 *.d *.mod $(OBJS) $(EXEC) $(DEPGEN)
+	$(RM) -f *.f *.f90 *.d *.mod *.optrpt $(OBJS) $(EXEC) $(DEPGEN)
 
 .PHONY: distclean
 distclean: clean

@@ -30,7 +30,7 @@ module seq_hist_mod
   use seq_comm_mct,      only: CPLID, GLOID, logunit, loglevel
   use seq_comm_mct,      only: num_inst_atm, num_inst_lnd, num_inst_ocn
   use seq_comm_mct,      only: num_inst_ice, num_inst_glc, num_inst_wav
-  use seq_comm_mct,      only: num_inst_rof, num_inst_xao
+  use seq_comm_mct,      only: num_inst_rof, num_inst_xao, num_inst_iac
 
   use prep_ocn_mod,      only: prep_ocn_get_r2x_ox
   use prep_ocn_mod,      only: prep_ocn_get_x2oacc_ox
@@ -81,6 +81,7 @@ module seq_hist_mod
   logical     :: rof_present            ! .true.  => land runoff is present
   logical     :: glc_present            ! .true.  => glc is present
   logical     :: wav_present            ! .true.  => wav is present
+  logical     :: iac_present            ! .true.  => iac is present
 
   logical     :: atm_prognostic         ! .true.  => atm comp expects input
   logical     :: lnd_prognostic         ! .true.  => lnd comp expects input
@@ -90,6 +91,7 @@ module seq_hist_mod
   logical     :: rof_prognostic         ! .true.  => rof comp expects input
   logical     :: glc_prognostic         ! .true.  => glc comp expects input
   logical     :: wav_prognostic         ! .true.  => wav comp expects input
+  logical     :: iac_prognostic         ! .true.  => iac comp expects input
 
   logical     :: histavg_atm            ! .true.  => write atm fields to average history file
   logical     :: histavg_lnd            ! .true.  => write lnd fields to average history file
@@ -98,8 +100,10 @@ module seq_hist_mod
   logical     :: histavg_rof            ! .true.  => write rof fields to average history file
   logical     :: histavg_glc            ! .true.  => write glc fields to average history file
   logical     :: histavg_wav            ! .true.  => write wav fields to average history file
+  logical     :: histavg_iac            ! .true.  => write iac fields to average history file
   logical     :: histavg_xao            ! .true.  => write flux xao fields to average history file
 
+  logical     :: single_column
 
   !--- domain equivalent 2d grid size ---
   integer(IN) :: atm_nx, atm_ny         ! nx,ny of 2d grid, if known
@@ -109,6 +113,7 @@ module seq_hist_mod
   integer(IN) :: rof_nx, rof_ny         ! nx,ny of 2d grid, if known
   integer(IN) :: glc_nx, glc_ny         ! nx,ny of 2d grid, if known
   integer(IN) :: wav_nx, wav_ny         ! nx,ny of 2d grid, if known
+  integer(IN) :: iac_nx, iac_ny         ! nx,ny of 2d grid, if known
 
   !--- temporary pointers ---
   type(mct_aVect), pointer :: r2x_ox(:)
@@ -123,9 +128,9 @@ contains
   !===============================================================================
 
   subroutine seq_hist_write(infodata, EClock_d, &
-       atm, lnd, ice, ocn, rof, glc, wav, &
+       atm, lnd, ice, ocn, rof, glc, wav, iac, &
        fractions_ax, fractions_lx, fractions_ix, fractions_ox, fractions_rx,  &
-       fractions_gx, fractions_wx, cpl_inst_tag)
+       fractions_gx, fractions_wx, fractions_zx, cpl_inst_tag)
 
     implicit none
     !
@@ -139,6 +144,7 @@ contains
     type (component_type)   , intent(inout) :: rof(:)
     type (component_type)   , intent(inout) :: glc(:)
     type (component_type)   , intent(inout) :: wav(:)
+    type (component_type)   , intent(inout) :: iac(:)
     type(mct_aVect)         , intent(inout) :: fractions_ax(:) ! Fractions on atm grid/decomp
     type(mct_aVect)         , intent(inout) :: fractions_lx(:) ! Fractions on lnd grid/decomp
     type(mct_aVect)         , intent(inout) :: fractions_ix(:) ! Fractions on ice grid/decomp
@@ -146,6 +152,7 @@ contains
     type(mct_aVect)         , intent(inout) :: fractions_rx(:) ! Fractions on rof grid/decomp
     type(mct_aVect)         , intent(inout) :: fractions_gx(:) ! Fractions on glc grid/decomp
     type(mct_aVect)         , intent(inout) :: fractions_wx(:) ! Fractions on wav grid/decomp
+    type(mct_aVect)         , intent(inout) :: fractions_zx(:) ! Fractions on iac grid/decomp
     character(len=*)        ,  intent(in) :: cpl_inst_tag
     !
     ! Local Variables
@@ -164,6 +171,7 @@ contains
     character(len=18) :: date_str
     type(mct_gsMap), pointer :: gsmap
     type(mct_gGrid), pointer :: dom    ! comp domain on cpl pes
+    character(CL) :: model_doi_url 
     !-------------------------------------------------------------------------------
     !
     !-------------------------------------------------------------------------------
@@ -185,6 +193,7 @@ contains
          ocn_present=ocn_present,             &
          glc_present=glc_present,             &
          wav_present=wav_present,             &
+         iac_present=iac_present,             &
          atm_prognostic=atm_prognostic,       &
          lnd_prognostic=lnd_prognostic,       &
          ice_prognostic=ice_prognostic,       &
@@ -193,14 +202,18 @@ contains
          rof_prognostic=rof_prognostic,       &
          glc_prognostic=glc_prognostic,       &
          wav_prognostic=wav_prognostic,       &
+         iac_prognostic=iac_prognostic,       &
          atm_nx=atm_nx, atm_ny=atm_ny,        &
          lnd_nx=lnd_nx, lnd_ny=lnd_ny,        &
          rof_nx=rof_nx, rof_ny=rof_ny,        &
          ice_nx=ice_nx, ice_ny=ice_ny,        &
          glc_nx=glc_nx, glc_ny=glc_ny,        &
          wav_nx=wav_nx, wav_ny=wav_ny,        &
+         iac_nx=iac_nx, iac_ny=iac_ny,        &
          ocn_nx=ocn_nx, ocn_ny=ocn_ny,        &
-         case_name=case_name)
+         single_column=single_column,         &
+         case_name=case_name,                 &
+         model_doi_url=model_doi_url)
 
     !--- Get current date from clock needed to label the history pointer file ---
 
@@ -218,7 +231,7 @@ contains
     if (iamin_CPLID) then
 
        if (drv_threading) call seq_comm_setnthreads(nthreads_CPLID)
-       call seq_io_wopen(hist_file,clobber=.true.)
+       call seq_io_wopen(hist_file,clobber=.true., model_doi_url=model_doi_url)
 
        ! loop twice, first time write header, second time write data for perf
 
@@ -250,13 +263,17 @@ contains
              gsmap => component_get_gsmap_cx(atm(1))
              dom   => component_get_dom_cx(atm(1))
              call seq_io_write(hist_file, gsmap, dom%data, 'dom_ax',  &
-                  nx=atm_nx, ny=atm_ny, nt=1, whead=whead, wdata=wdata, pre='doma')
+                  nx=atm_nx, ny=atm_ny, nt=1, whead=whead, wdata=wdata, pre='doma', &
+                  scolumn=single_column)
              call seq_io_write(hist_file, gsmap, fractions_ax, 'fractions_ax',  &
-                  nx=atm_nx, ny=atm_ny, nt=1, whead=whead, wdata=wdata, pre='fraca')
+                  nx=atm_nx, ny=atm_ny, nt=1, whead=whead, wdata=wdata, pre='fraca', &
+                  scolumn=single_column)
              call seq_io_write(hist_file, atm, 'x2c', 'x2a_ax', &
-                  nx=atm_nx, ny=atm_ny, nt=1, whead=whead, wdata=wdata, pre='x2a')
+                  nx=atm_nx, ny=atm_ny, nt=1, whead=whead, wdata=wdata, pre='x2a', &
+                  scolumn=single_column)
              call seq_io_write(hist_file, atm, 'c2x', 'a2x_ax', &
-                  nx=atm_nx, ny=atm_ny, nt=1, whead=whead, wdata=wdata, pre='a2x')
+                  nx=atm_nx, ny=atm_ny, nt=1, whead=whead, wdata=wdata, pre='a2x', &
+                  scolumn=single_column)
              !call seq_io_write(hist_file, gsmap, l2x_ax, 'l2x_ax',  &
              !    nx=atm_nx, ny=atm_ny, nt=1, whead=whead, wdata=wdata, pre='l2x_ax')
              !call seq_io_write(hist_file, gsmap, o2x_ax, 'o2x_ax',  &
@@ -373,6 +390,19 @@ contains
              call seq_io_write(hist_file, wav, 'x2c', 'x2w_wx', &
                   nx=wav_nx, ny=wav_ny, nt=1, whead=whead, wdata=wdata, pre='x2w')
           endif
+
+          if (iac_present) then
+             gsmap => component_get_gsmap_cx(iac(1))
+             dom   => component_get_dom_cx(iac(1))
+             call seq_io_write(hist_file, gsmap, dom%data, 'dom_zx',  &
+                  nx=iac_nx, ny=iac_ny, nt=1, whead=whead, wdata=wdata, pre='domz')
+             call seq_io_write(hist_file, gsmap, fractions_zx, 'fractions_zx',  &
+                  nx=iac_nx, ny=iac_ny, nt=1, whead=whead, wdata=wdata, pre='fracz')
+             call seq_io_write(hist_file, iac, 'c2x', 'z2x_zx', &
+                  nx=iac_nx, ny=iac_ny, nt=1, whead=whead, wdata=wdata, pre='w2x')
+             call seq_io_write(hist_file, iac, 'x2c', 'x2z_zx', &
+                  nx=iac_nx, ny=iac_ny, nt=1, whead=whead, wdata=wdata, pre='x2w')
+          endif
        enddo
 
        call seq_io_close(hist_file)
@@ -384,7 +414,7 @@ contains
   !===============================================================================
 
   subroutine seq_hist_writeavg(infodata, EClock_d, &
-       atm, lnd, ice, ocn, rof, glc, wav, write_now, cpl_inst_tag)
+       atm, lnd, ice, ocn, rof, glc, wav, iac, write_now, cpl_inst_tag)
 
     implicit none
 
@@ -397,6 +427,7 @@ contains
     type (component_type)   ,  intent(in) :: rof(:)
     type (component_type)   ,  intent(in) :: glc(:)
     type (component_type)   ,  intent(in) :: wav(:)
+    type (component_type)   ,  intent(in) :: iac(:)
     logical                 ,  intent(in) :: write_now  ! write or accumulate
     character(len=*)        ,  intent(in) :: cpl_inst_tag
 
@@ -409,15 +440,15 @@ contains
     real(r8)              :: curr_time    ! Time interval since reference time
     real(r8)              :: prev_time    ! Time interval since reference time
     real(r8)              :: avg_time     ! Average time of tavg
-    integer(IN)           :: yy, mm, dd     ! year,  month,  day
+    integer(IN)           :: yy, mm, dd   ! year,  month,  day
     integer(IN)           :: fk           ! index
     character(CL)         :: time_units   ! units of time variable
     character(CL)         :: calendar     ! calendar type
     integer(IN)           :: lsize        ! local size of an aVect
     character(CL)         :: case_name    ! case name
     character(CL)         :: hist_file    ! Local path to history filename
-    logical               :: whead, wdata  ! flags write header vs. data
-    integer(IN)           :: iidx ! component instance counter
+    logical               :: whead, wdata ! flags write header vs. data
+    integer(IN)           :: iidx         ! component instance counter
 
     type(mct_aVect), save  :: a2x_ax_avg(num_inst_atm)   ! tavg aVect/bundle
     type(mct_aVect), save  :: x2a_ax_avg(num_inst_atm)
@@ -433,6 +464,8 @@ contains
     type(mct_aVect), save  :: x2g_gx_avg(num_inst_glc)
     type(mct_aVect), save  :: w2x_wx_avg(num_inst_wav)
     type(mct_aVect), save  :: x2w_wx_avg(num_inst_wav)
+    type(mct_aVect), save  :: z2x_zx_avg(num_inst_iac)
+    type(mct_aVect), save  :: x2z_zx_avg(num_inst_iac)
     type(mct_aVect), save, pointer  :: xao_ox_avg(:)
     type(mct_aVect), save, pointer  :: xao_ax_avg(:)
 
@@ -446,6 +479,7 @@ contains
     type(mct_gGrid),  pointer :: dom    ! component domain on cpl pes
     type(mct_avect),  pointer :: c2x    ! component->coupler avs on cpl pes
     type(mct_avect),  pointer :: x2c    ! coupler->component avs on cpl pes
+    character(CL) :: model_doi_url
     !-------------------------------------------------------------------------------
     !
     !-------------------------------------------------------------------------------
@@ -468,6 +502,7 @@ contains
          ocn_present=ocn_present,             &
          glc_present=glc_present,             &
          wav_present=wav_present,             &
+         iac_present=iac_present,             &
          atm_prognostic=atm_prognostic,       &
          lnd_prognostic=lnd_prognostic,       &
          ice_prognostic=ice_prognostic,       &
@@ -481,6 +516,7 @@ contains
          ice_nx=ice_nx,  ice_ny=ice_ny,       &
          glc_nx=glc_nx,  glc_ny=glc_ny,       &
          wav_nx=wav_nx,  wav_ny=wav_ny,       &
+         iac_nx=iac_nx,  iac_ny=iac_ny,       &
          ocn_nx=ocn_nx,  ocn_ny=ocn_ny,       &
          histavg_atm=histavg_atm,             &
          histavg_lnd=histavg_lnd,             &
@@ -489,7 +525,9 @@ contains
          histavg_rof=histavg_rof,             &
          histavg_glc=histavg_glc,             &
          histavg_wav=histavg_wav,             &
-         histavg_xao=histavg_xao)
+         histavg_iac=histavg_iac,             &
+         histavg_xao=histavg_xao,             &
+         model_doi_url=model_doi_url)
 
     ! Get current date from clock needed to label the histavg pointer file
 
@@ -589,6 +627,19 @@ contains
              call mct_aVect_zero(x2w_wx_avg(iidx))
           enddo
        endif
+       if (iac_present .and. histavg_iac) then
+          do iidx = 1,  num_inst_iac
+             c2x => component_get_c2x_cx(iac(iidx))
+             lsize = mct_aVect_lsize(c2x)
+             call mct_aVect_init(z2x_zx_avg(iidx), c2x, lsize)
+             call mct_aVect_zero(z2x_zx_avg(iidx))
+
+             x2c => component_get_x2c_cx(iac(iidx))
+             lsize = mct_aVect_lsize(x2c)
+             call mct_aVect_init(x2z_zx_avg(iidx), x2c, lsize)
+             call mct_aVect_zero(x2z_zx_avg(iidx))
+          enddo
+       endif
        if (ocn_present .and. histavg_xao) then
           allocate(xao_ox_avg(num_inst_xao))
           xao_ox => prep_aoflux_get_xao_ox()
@@ -670,6 +721,14 @@ contains
              x2w_wx_avg(iidx)%rAttr = x2w_wx_avg(iidx)%rAttr + x2c%rAttr
           enddo
        endif
+       if (iac_present .and. histavg_iac) then
+          do iidx = 1,  num_inst_iac
+             c2x => component_get_c2x_cx(iac(iidx))
+             x2c => component_get_x2c_cx(iac(iidx))
+             z2x_zx_avg(iidx)%rAttr = z2x_zx_avg(iidx)%rAttr + c2x%rAttr
+             x2z_zx_avg(iidx)%rAttr = x2z_zx_avg(iidx)%rAttr + x2c%rAttr
+          enddo
+       endif
        if (ocn_present .and. histavg_xao) then
           xao_ox => prep_aoflux_get_xao_ox()
           do iidx = 1,  num_inst_ocn
@@ -743,6 +802,14 @@ contains
              x2w_wx_avg(iidx)%rAttr = (x2w_wx_avg(iidx)%rAttr + x2c%rAttr) / (cnt * 1.0_r8)
           enddo
        endif
+       if (iac_present .and. histavg_iac) then
+          do iidx = 1,  num_inst_iac
+             c2x => component_get_c2x_cx(iac(iidx))
+             x2c => component_get_x2c_cx(iac(iidx))
+             z2x_zx_avg(iidx)%rAttr = (z2x_zx_avg(iidx)%rAttr + c2x%rAttr) / (cnt * 1.0_r8)
+             x2z_zx_avg(iidx)%rAttr = (x2z_zx_avg(iidx)%rAttr + x2c%rAttr) / (cnt * 1.0_r8)
+          enddo
+       endif
        if (ocn_present .and. histavg_xao) then
           xao_ox => prep_aoflux_get_xao_ox()
           do iidx = 1,  num_inst_ocn
@@ -778,7 +845,7 @@ contains
        if (iamin_CPLID) then
 
           if (drv_threading) call seq_comm_setnthreads(nthreads_CPLID)
-          call seq_io_wopen(hist_file, clobber=.true.)
+          call seq_io_wopen(hist_file, clobber=.true., model_doi_url=model_doi_url)
 
           ! loop twice,  first time write header,  second time write data for perf
 
@@ -891,6 +958,18 @@ contains
                      nx=wav_nx, ny=wav_ny, nt=1, whead=whead, wdata=wdata,  &
                      pre='x2wavg', tavg=.true.)
              endif
+             if (iac_present .and. histavg_iac) then
+                gsmap => component_get_gsmap_cx(iac(1))
+                dom   => component_get_dom_cx(iac(1))
+                call seq_io_write(hist_file, gsmap, dom%data, 'dom_zx',  &
+                     nx=iac_nx, ny=iac_ny, nt=1, whead=whead, wdata=wdata, pre='domw')
+                call seq_io_write(hist_file, gsmap, z2x_zx_avg, 'z2x_zx',  &
+                     nx=iac_nx, ny=iac_ny, nt=1, whead=whead, wdata=wdata,  &
+                     pre='z2xavg', tavg=.true.)
+                call seq_io_write(hist_file, gsmap, x2z_zx_avg, 'x2z_zx',  &
+                     nx=iac_nx, ny=iac_ny, nt=1, whead=whead, wdata=wdata,  &
+                     pre='x2zavg', tavg=.true.)
+             endif
              if (ocn_present .and. histavg_xao) then
                 gsmap => component_get_gsmap_cx(ocn(1))
                 call seq_io_write(hist_file, gsmap, xao_ox_avg, 'xao_ox',  &
@@ -950,6 +1029,12 @@ contains
                 call mct_aVect_zero(x2w_wx_avg(iidx))
              enddo
           endif
+          if (iac_present .and. histavg_iac) then
+             do iidx = 1,  num_inst_wav
+                call mct_aVect_zero(z2x_zx_avg(iidx))
+                call mct_aVect_zero(x2z_zx_avg(iidx))
+             enddo
+          endif
           if (ocn_present .and. histavg_xao) then
              do iidx = 1,  num_inst_xao
                 call mct_aVect_zero(xao_ox_avg(iidx))
@@ -970,24 +1055,48 @@ contains
 
   !===============================================================================
 
-  subroutine seq_hist_writeaux(infodata, EClock_d, comp, flow, aname, dname, &
-       nx, ny, nt, write_now, flds, yr_offset)
+  subroutine seq_hist_writeaux(infodata, EClock_d, comp, flow, aname, dname, inst_suffix, &
+       nx, ny, nt, write_now, flds, tbnds1_offset, yr_offset, av_to_write)
 
     implicit none
 
     !--- arguments ---
     type (seq_infodata_type) , intent(inout)        :: infodata
-    type(ESMF_Clock)         , intent(in)           :: EClock_d  ! driver clock
-    type(component_type)     , intent(in)           :: comp      ! component instance
-    character(len=3)         , intent(in)           :: flow      ! 'x2c' or 'c2x'
-    character(*)             , intent(in)           :: aname     ! avect name for hist file
-    character(*)             , intent(in)           :: dname     ! domain name for hist file
-    integer(IN)              , intent(in)           :: nx        ! 2d global size nx
-    integer(IN)              , intent(in)           :: ny        ! 2d global size ny
-    integer(IN)              , intent(in)           :: nt        ! number of time samples per file
-    logical                  , optional, intent(in) :: write_now ! write a sample now, if not used, write every call
-    character(*)             , optional, intent(in) :: flds      ! list of fields to write
-    integer                  , optional, intent(in) :: yr_offset ! offset to apply to current year when generating file name
+    type(ESMF_Clock)         , intent(in)           :: EClock_d    ! driver clock
+    type(component_type)     , intent(in)           :: comp        ! component instance
+    character(len=3)         , intent(in)           :: flow        ! 'x2c' or 'c2x'
+    character(*)             , intent(in)           :: aname       ! avect name for hist file
+    character(*)             , intent(in)           :: dname       ! domain name for hist file
+    character(*)             , intent(in)           :: inst_suffix ! instance number part of file name
+    integer(IN)              , intent(in)           :: nx          ! 2d global size nx
+    integer(IN)              , intent(in)           :: ny          ! 2d global size ny
+    integer(IN)              , intent(in)           :: nt          ! number of time samples per file
+    logical                  , optional, intent(in) :: write_now   ! write a sample now, if not used, write every call
+    character(*)             , optional, intent(in) :: flds        ! list of fields to write
+
+    ! Offset for starting time bound, in fractional days. This should be negative. If
+    ! tbnds1_offset is provided, then: When it's time to write the file, create the lower
+    ! time bound as curr_time + tbnds1_offset.
+    !
+    ! If tbnds1_offset is not provided, then the lower bound is either (a) the time from
+    ! the previous write, or (b) for the first write after restarting the model, the
+    ! model's prev_time from the first call to seq_hist_writeaux for this file. To achieve
+    ! accurate time bounds, it is important to provide this argument for (1) files for
+    ! which we do not call this every time step, but rather only call this when it's time
+    ! to write (which causes problems for (a)), and/or (2) files that are written
+    ! infrequently, for which there might be a model restart in the middle of an interval
+    ! (which causes problems for (b)).
+    real(r8)                 , optional, intent(in) :: tbnds1_offset
+
+    ! Offset to apply to current year when generating file name.
+    ! For example, for a field written once a year, yr_offset=-1 will make it so the file
+    ! with fields from year 1 has time stamp 0001-01-01 rather than 0002-01-01, which can
+    ! simplify later reading by a data model.
+    integer                  , optional, intent(in) :: yr_offset
+
+    ! If av_to_write is provided, then write fields from this attribute vector.
+    ! Otherwise, get the attribute vector from 'comp', based on 'flow'.
+    type(mct_avect), target  , optional, intent(in) :: av_to_write
 
     !--- local ---
     type(mct_gGrid), pointer :: dom
@@ -1010,10 +1119,11 @@ contains
     logical                  :: first_call
     integer(IN)              :: found = -10
     logical                  :: useavg
+    logical                  :: use_double ! if true, use double-precision
     logical                  :: lwrite_now
     logical                  :: whead, wdata  ! for writing restart/history cdf files
     real(r8)                 :: tbnds(2)
-    character(len=12) :: date_str
+    character(len=16) :: date_str
 
     integer(IN), parameter   :: maxout = 20
     integer(IN)       , save :: ntout = 0
@@ -1029,7 +1139,7 @@ contains
     type(mct_aVect)         :: avflds                  ! non-avg av for a subset of fields
 
     real(r8), parameter :: c0 = 0.0_r8 ! zero
-
+    character(CL) :: model_doi_url
     !-------------------------------------------------------------------------------
     !
     !-------------------------------------------------------------------------------
@@ -1043,16 +1153,6 @@ contains
          mpicom=mpicom_GLOID, nthreads=nthreads_GLOID)
     call seq_comm_getdata(CPLID, &
          mpicom=mpicom_CPLID, nthreads=nthreads_CPLID)
-
-    call seq_infodata_getData(infodata, &
-         drv_threading=drv_threading,   &
-         atm_present=atm_present,       &
-         lnd_present=lnd_present,       &
-         rof_present=rof_present,       &
-         ice_present=ice_present,       &
-         ocn_present=ocn_present,       &
-         glc_present=glc_present,       &
-         wav_present=wav_present)
 
     lwrite_now = .true.
     useavg = .false.
@@ -1079,10 +1179,14 @@ contains
     enddo
 
     if (iamin_CPLID) then
-       if (flow == 'c2x') then
-          av => component_get_c2x_cx(comp)
-       else if (flow == 'x2c') then
-          av => component_get_x2c_cx(comp)
+       if (present(av_to_write)) then
+          av => av_to_write
+       else
+          if (flow == 'c2x') then
+             av => component_get_c2x_cx(comp)
+          else if (flow == 'x2c') then
+             av => component_get_x2c_cx(comp)
+          end if
        end if
        dom   => component_get_dom_cx(comp)
        gsmap => component_get_gsmap_cx(comp)
@@ -1122,6 +1226,10 @@ contains
 
        if (lwrite_now) then
 
+          call seq_infodata_getData(infodata, &
+               drv_threading=drv_threading, &
+               histaux_double_precision = use_double)
+
           ncnt(found) = ncnt(found) + 1
           if (ncnt(found) < 1 .or. ncnt(found) > samples_per_file) ncnt(found) = 1
 
@@ -1134,29 +1242,33 @@ contains
              call seq_infodata_GetData( infodata,  case_name=case_name)
              call shr_cal_date2ymd(curr_ymd, yy, mm, dd)
 
-             ! Adjust yyyy in file name by yr_offset,  if present
-             ! For example,  for a field written once a year,  this will make it so the file
-             ! with fields from year 1 has time stamp 0001-01-01 rather than 0002-01-01,
-             ! which can simplify later reading by a data model
              if (present(yr_offset)) then
                 yy = yy + yr_offset
              end if
-             call shr_cal_ymdtod2string(date_str, yy, mm, dd)
-             write(hist_file(found), "(a6)") &
-                  trim(case_name),'.cpl.h',trim(aname),'.',trim(date_str), '.nc'
+             call shr_cal_ymdtod2string(date_str, yy, mm, dd, curr_tod)
+             write(hist_file(found), "(8a)") &
+                  trim(case_name),'.cpl',trim(inst_suffix),'.h',trim(aname),'.',trim(date_str), '.nc'
           else
              fk1 = 2
           endif
 
           if (drv_threading) call seq_comm_setnthreads(nthreads_CPLID)
           if (fk1 == 1) then
-             call seq_io_wopen(hist_file(found), clobber=.true., file_ind=found)
+             call seq_io_wopen(hist_file(found), clobber=.true., file_ind=found, model_doi_url=model_doi_url)
           endif
 
           ! loop twice,  first time write header,  second time write data for perf
 
-          tbnds(1) = tbnds1(found)
           tbnds(2) = tbnds2(found)
+          if (present(tbnds1_offset)) then
+             if (tbnds1_offset >= 0) then
+                call shr_sys_abort('seq_hist_writeaux: Expect negative tbnds1_offset for '// &
+                     trim(aname))
+             end if
+             tbnds(1) = tbnds(2) + tbnds1_offset
+          else
+             tbnds(1) = tbnds1(found)
+          end if
 
           do fk = fk1, 2
              if (fk == 1) then
@@ -1199,21 +1311,23 @@ contains
                    call mct_aVect_copy(aVin=avavg(found),  aVout=avflds)
                    call seq_io_write(hist_file(found),  gsmap,  avflds,  trim(aname),  &
                         nx=nx,  ny=ny,  nt=ncnt(found),  whead=whead,  wdata=wdata,  &
-                        pre=trim(aname), tavg=.true., use_float=.true., file_ind=found)
+                        pre=trim(aname), tavg=.true., use_float=(.not. use_double), &
+                        file_ind=found)
                 else
                    call seq_io_write(hist_file(found),  gsmap,  avavg(found),  trim(aname),  &
                         nx=nx,  ny=ny,  nt=ncnt(found),  whead=whead,  wdata=wdata,  &
-                        pre=trim(aname), tavg=.true.,  use_float=.true., file_ind=found)
+                        pre=trim(aname), tavg=.true.,  use_float=(.not. use_double), &
+                        file_ind=found)
                 end if
              else if (present(flds)) then
                 call mct_aVect_copy(aVin=av,  aVout=avflds)
                 call seq_io_write(hist_file(found),  gsmap,  avflds,  trim(aname),  &
                      nx=nx, ny=ny, nt=ncnt(found), whead=whead, wdata=wdata, pre=trim(aname), &
-                     use_float=.true., file_ind=found)
+                     use_float=(.not. use_double), file_ind=found)
              else
                 call seq_io_write(hist_file(found),  gsmap,  av,  trim(aname),  &
                      nx=nx, ny=ny, nt=ncnt(found), whead=whead, wdata=wdata, pre=trim(aname), &
-                     use_float=.true., file_ind=found)
+                     use_float=(.not. use_double), file_ind=found)
              endif
 
              if (present(flds)) then
@@ -1250,19 +1364,20 @@ contains
 
   !===============================================================================
 
-  subroutine seq_hist_spewav(infodata, aname, gsmap, av, nx, ny, nt, write_now, flds)
+  subroutine seq_hist_spewav(infodata, aname, inst_suffix, gsmap, av, nx, ny, nt, write_now, flds)
 
     implicit none
 
     type(seq_infodata_type) , intent(in)    :: infodata
-    character(*)    , intent(in)           :: aname     ! avect name for hist file
-    type(mct_gsmap) , intent(in)           :: gsmap     ! gsmap
-    type(mct_aVect) , intent(in)           :: av        ! avect
-    integer(IN)     , intent(in)           :: nx        ! 2d global size nx
-    integer(IN)     , intent(in)           :: ny        ! 2d global size ny
-    integer(IN)     , intent(in)           :: nt        ! number of time samples per file
-    logical         , intent(in), optional :: write_now ! write a sample now,  if not used,  write every call
-    character(*)    , intent(in), optional :: flds      ! list of fields to write
+    character(*)    , intent(in)           :: aname       ! avect name for hist file
+    character(*)    , intent(in)           :: inst_suffix ! instance number part of file name
+    type(mct_gsmap) , intent(in)           :: gsmap       ! gsmap
+    type(mct_aVect) , intent(in)           :: av          ! avect
+    integer(IN)     , intent(in)           :: nx          ! 2d global size nx
+    integer(IN)     , intent(in)           :: ny          ! 2d global size ny
+    integer(IN)     , intent(in)           :: nt          ! number of time samples per file
+    logical         , intent(in), optional :: write_now   ! write a sample now,  if not used,  write every call
+    character(*)    , intent(in), optional :: flds        ! list of fields to write
 
     !--- local ---
     character(CL)           :: case_name         ! case name
@@ -1289,7 +1404,7 @@ contains
     type(mct_aVect)         :: avflds                  ! non-avg av for a subset of fields
 
     real(r8),parameter :: c0 = 0.0_r8 ! zero
-
+    character(CL) :: model_doi_url
     !-------------------------------------------------------------------------------
     !
     !-------------------------------------------------------------------------------
@@ -1303,14 +1418,8 @@ contains
     call seq_comm_getdata(CPLID, mpicom=mpicom_CPLID, nthreads=nthreads_CPLID)
 
     call seq_infodata_getData(infodata, &
-         drv_threading=drv_threading,   &
-         atm_present=atm_present,       &
-         lnd_present=lnd_present,       &
-         rof_present=rof_present,       &
-         ice_present=ice_present,       &
-         ocn_present=ocn_present,       &
-         glc_present=glc_present,       &
-         wav_present=wav_present)
+         drv_threading=drv_threading, &
+         model_doi_url=model_doi_url)
 
     lwrite_now = .true.
     useavg = .false.
@@ -1372,16 +1481,16 @@ contains
              fk1 = 1
              call seq_infodata_GetData( infodata,  case_name=case_name)
              write(hist_file(found), "(a, i4.4, a)") &
-                  trim(case_name)//'.cpl.h'//trim(aname)//'.', nfiles(found), '.nc'
+                  trim(case_name)//'.cpl'//trim(inst_suffix)//'.h'//trim(aname)//'.', nfiles(found), '.nc'
           else
              fk1 = 2
           endif
 
           if (drv_threading) call seq_comm_setnthreads(nthreads_CPLID)
           if (fk1 == 1) then
-             call seq_io_wopen(hist_file(found), clobber=.true.)
+             call seq_io_wopen(hist_file(found), clobber=.true. , model_doi_url=model_doi_url)
           else
-             call seq_io_wopen(hist_file(found), clobber=.false.)
+             call seq_io_wopen(hist_file(found), clobber=.false., model_doi_url=model_doi_url)
           endif
 
           ! loop twice,  first time write header,  second time write data for perf

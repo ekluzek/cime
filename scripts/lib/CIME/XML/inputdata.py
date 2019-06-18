@@ -25,8 +25,11 @@ class Inputdata(GenericXML):
         self._servernode = None
 
     def get_next_server(self):
-        protocal = None
+        protocol = None
         address = None
+        user = ''
+        passwd = ''
+        chksum_file = None
         servernodes = self.get_children("server")
         if self._servernode is None:
             self._servernode = servernodes[0]
@@ -40,7 +43,15 @@ class Inputdata(GenericXML):
                 self._servernode = None
 
         if self._servernode is not None:
-            protocal = self.text(self.get_child("protocal", root = self._servernode))
+            protocol = self.text(self.get_child("protocol", root = self._servernode))
             address =  self.text(self.get_child("address", root = self._servernode))
-
-        return protocal, address
+            unode = self.get_optional_child("user", root = self._servernode)
+            if unode:
+                user =  self.text(unode)
+            pnode = self.get_optional_child("password", root = self._servernode)
+            if pnode:
+                passwd =  self.text(pnode)
+            csnode = self.get_optional_child("checksum", root = self._servernode)
+            if csnode:
+                chksum_file =  self.text(csnode)
+        return protocol, address, user, passwd, chksum_file

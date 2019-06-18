@@ -11,7 +11,7 @@ import CIME.utils
 logger = logging.getLogger(__name__)
 
 def get_tests_from_xml(xml_machine=None,xml_category=None,xml_compiler=None, xml_testlist=None,
-                       machine=None, compiler=None):
+                       machine=None, compiler=None, driver=None):
     """
     Parse testlists for a list of tests
     """
@@ -46,6 +46,19 @@ def get_tests_from_xml(xml_machine=None,xml_category=None,xml_compiler=None, xml
             test["name"] = CIME.utils.get_full_test_name(test["testname"], grid=test["grid"], compset=test["compset"],
                                                          machine=thismach, compiler=thiscompiler,
                                                          testmod=None if "testmods" not in test else test["testmods"])
+            if driver:
+                # override default or specified driver
+                founddriver = False
+                for specdriver in ("Vnuopc","Vmct","Vmoab"):
+                    if specdriver in test["name"]:
+                        test["name"] = test["name"].replace(specdriver,"V{}".format(driver))
+                        founddriver = True
+                if not founddriver:
+                    name = test["name"]
+                    index = name.find('.')
+                    test["name"] = name[:index] + "_V{}".format(driver) + name[index:]
+
+
             logger.debug("Adding test {} with compiler {}".format(test["name"], test["compiler"]))
         listoftests += newtests
         logger.debug("Found {:d} tests".format(len(listoftests)))
@@ -64,19 +77,19 @@ def test_to_string(test, category_field_width=0, test_field_width=0, show_option
                              option is always printed, if present)
 
     Basic functionality:
-    >>> mytest = {'name': 'SMS.f19_g16.A.yellowstone_intel', 'category': 'prealpha', 'options': {}}
+    >>> mytest = {'name': 'SMS.f19_g16.A.cheyenne_intel', 'category': 'prealpha', 'options': {}}
     >>> test_to_string(mytest, 10)
-    'prealpha  : SMS.f19_g16.A.yellowstone_intel'
+    'prealpha  : SMS.f19_g16.A.cheyenne_intel'
 
     Printing comments:
-    >>> mytest = {'name': 'SMS.f19_g16.A.yellowstone_intel', 'category': 'prealpha', 'options': {'comment': 'my remarks'}}
+    >>> mytest = {'name': 'SMS.f19_g16.A.cheyenne_intel', 'category': 'prealpha', 'options': {'comment': 'my remarks'}}
     >>> test_to_string(mytest, 10)
-    'prealpha  : SMS.f19_g16.A.yellowstone_intel # my remarks'
+    'prealpha  : SMS.f19_g16.A.cheyenne_intel # my remarks'
 
     Printing other options, too:
-    >>> mytest = {'name': 'SMS.f19_g16.A.yellowstone_intel', 'category': 'prealpha', 'options': {'comment': 'my remarks', 'wallclock': '0:20', 'memleak_tolerance': 0.2}}
+    >>> mytest = {'name': 'SMS.f19_g16.A.cheyenne_intel', 'category': 'prealpha', 'options': {'comment': 'my remarks', 'wallclock': '0:20', 'memleak_tolerance': 0.2}}
     >>> test_to_string(mytest, 10, show_options=True)
-    'prealpha  : SMS.f19_g16.A.yellowstone_intel # my remarks  # memleak_tolerance: 0.2  # wallclock: 0:20'
+    'prealpha  : SMS.f19_g16.A.cheyenne_intel # my remarks  # memleak_tolerance: 0.2  # wallclock: 0:20'
     """
 
     mystr = "%-*s: %-*s"%(category_field_width, test['category'], test_field_width, test['name'])

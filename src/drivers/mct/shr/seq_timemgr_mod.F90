@@ -5,7 +5,7 @@
 ! !DESCRIPTION:
 !
 !     A module to create derived types to manage time and clock information
-!     for use with CCSM drivers and models.
+!     for use with CIME drivers and models.
 !
 ! !REMARKS:
 !
@@ -153,9 +153,10 @@ module seq_timemgr_mod
        seq_timemgr_nclock_glc  = 6, &
        seq_timemgr_nclock_wav  = 7, &
        seq_timemgr_nclock_rof  = 8, &
-       seq_timemgr_nclock_esp  = 9
+       seq_timemgr_nclock_iac  = 9, &
+       seq_timemgr_nclock_esp  = 10
 
-  integer(SHR_KIND_IN),private,parameter :: max_clocks = 9
+  integer(SHR_KIND_IN),private,parameter :: max_clocks = 10
   character(len=*),public,parameter :: &
        seq_timemgr_clock_drv  = 'seq_timemgr_clock_drv' , &
        seq_timemgr_clock_atm  = 'seq_timemgr_clock_atm' , &
@@ -168,7 +169,8 @@ module seq_timemgr_mod
        seq_timemgr_clock_esp  = 'seq_timemgr_clock_esp'
   character(len=8),private,parameter :: seq_timemgr_clocks(max_clocks) = &
        (/'drv     ','atm     ','lnd     ','ocn     ', &
-       'ice     ','glc     ','wav     ','rof     ','esp     '/)
+       'ice     ','glc     ','wav     ','rof     ', &
+       'iac     ','esp     '/)
 
   ! Alarms on both component clocks and driver clock
   integer(SHR_KIND_IN),private,parameter :: &
@@ -188,9 +190,10 @@ module seq_timemgr_mod
        seq_timemgr_nalarm_histavg    =14 , & ! driver and component clock alarm
        seq_timemgr_nalarm_rofrun     =15 , & ! driver only clock alarm
        seq_timemgr_nalarm_wavrun     =16 , & ! driver only clock alarm
-       seq_timemgr_nalarm_esprun     =17 , & ! driver only clock alarm
-       seq_timemgr_nalarm_pause      =18 , &
-       seq_timemgr_nalarm_barrier    =19 , & ! driver and component clock alarm
+       seq_timemgr_nalarm_iacrun     =17 , & ! driver only clock alarm
+       seq_timemgr_nalarm_esprun     =18 , & ! driver only clock alarm
+       seq_timemgr_nalarm_pause      =19 , &
+       seq_timemgr_nalarm_barrier    =20 , & ! driver and component clock alarm
        max_alarms = seq_timemgr_nalarm_barrier
 
   character(len=*),public,parameter :: &
@@ -210,6 +213,7 @@ module seq_timemgr_mod
        seq_timemgr_alarm_histavg    = 'seq_timemgr_alarm_histavg ', &
        seq_timemgr_alarm_rofrun     = 'seq_timemgr_alarm_rofrun  ', &
        seq_timemgr_alarm_wavrun     = 'seq_timemgr_alarm_wavrun  ', &
+       seq_timemgr_alarm_iacrun     = 'seq_timemgr_alarm_iacrun  ', &
        seq_timemgr_alarm_esprun     = 'seq_timemgr_alarm_esprun  ', &
        seq_timemgr_alarm_pause      = 'seq_timemgr_alarm_pause   ', &
        seq_timemgr_alarm_barrier    = 'seq_timemgr_alarm_barrier '
@@ -255,7 +259,7 @@ contains
 
   subroutine seq_timemgr_clockInit(SyncClock, nmlfile, restart, restart_file, pioid, mpicom, &
        EClock_drv, EClock_atm, EClock_lnd, EClock_ocn, EClock_ice, Eclock_glc, &
-       Eclock_rof, EClock_wav, Eclock_esp)
+       Eclock_rof, EClock_wav, Eclock_esp, Eclock_iac)
 
     ! !USES:
     use pio, only : file_desc_T
@@ -280,6 +284,7 @@ contains
     type(ESMF_clock),target, intent(IN)    :: EClock_glc   ! glc clock
     type(ESMF_clock),target, intent(IN)    :: EClock_rof   ! rof clock
     type(ESMF_clock),target, intent(IN)    :: EClock_wav   ! wav clock
+    type(ESMF_clock),target, intent(IN)    :: EClock_iac   ! iac clock
     type(ESMF_clock),target, intent(IN)    :: EClock_esp   ! esp clock
     type(file_desc_t)                      :: pioid
 
@@ -291,7 +296,9 @@ contains
     type(ESMF_Time)             :: OffsetTime         ! local computed time
     type(ESMF_Time)             :: StopTime1          ! Stop time
     type(ESMF_Time)             :: StopTime2          ! Stop time
+    type(ESMF_Time)             :: StopTime, minStopTime ! Stop time
     type(ESMF_TimeInterval)     :: TimeStep           ! Clock time-step
+    type(ESMF_TimeInterval)     :: cplTimeStep           ! Clock time-step
     type(ESMF_CalKind_Flag)     :: esmf_caltype       ! local esmf calendar
     integer                     :: rc                 ! Return code
     integer                     :: n, i               ! index
@@ -311,6 +318,8 @@ contains
     integer(SHR_KIND_IN)    :: restart_ymd           ! Restart date (YYYYMMDD)
     character(SHR_KIND_CS)  :: pause_option          ! Pause option units
     integer(SHR_KIND_IN)    :: pause_n               ! Number between pause intervals
+    integer(SHR_KIND_IN)    :: RestInterval              ! Component Restart Interval
+    integer(SHR_KIND_IN)    :: drvrestinterval        ! Driver Restart Interval
 
     logical :: pause_active_atm
     logical :: pause_active_cpl
@@ -320,6 +329,7 @@ contains
     logical :: pause_active_ice
     logical :: pause_active_rof
     logical :: pause_active_lnd
+    logical :: pause_active_iac
 
     logical :: data_assimilation_atm
     logical :: data_assimilation_cpl
@@ -329,6 +339,7 @@ contains
     logical :: data_assimilation_ice
     logical :: data_assimilation_rof
     logical :: data_assimilation_lnd
+    logical :: data_assimilation_iac
 
     character(SHR_KIND_CS)  :: history_option        ! History option units
     integer(SHR_KIND_IN)    :: history_n             ! Number until history interval
@@ -356,6 +367,7 @@ contains
     character(SHR_KIND_CS)  :: glc_avg_period        ! Glc avering coupling period
     integer(SHR_KIND_IN)    :: rof_cpl_dt            ! Runoff coupling interval
     integer(SHR_KIND_IN)    :: wav_cpl_dt            ! Wav coupling interval
+    integer(SHR_KIND_IN)    :: iac_cpl_dt            ! Iac coupling interval
     integer(SHR_KIND_IN)    :: esp_cpl_dt            ! Esp coupling interval
     integer(SHR_KIND_IN)    :: atm_cpl_offset        ! Atmosphere coupling interval
     integer(SHR_KIND_IN)    :: lnd_cpl_offset        ! Land coupling interval
@@ -365,6 +377,7 @@ contains
     integer(SHR_KIND_IN)    :: wav_cpl_offset        ! Wav coupling interval
     integer(SHR_KIND_IN)    :: rof_cpl_offset        ! Runoff coupling interval
     integer(SHR_KIND_IN)    :: esp_cpl_offset        ! Esp coupling interval
+    integer(SHR_KIND_IN)    :: iac_cpl_offset        ! Iac coupling interval
     logical                 :: esp_run_on_pause      ! Run ESP on pause cycle
     logical                 :: end_restart           ! Write restart at end of run
     integer(SHR_KIND_IN)    :: ierr                  ! Return code
@@ -382,6 +395,7 @@ contains
          pause_active_cpl, &
          pause_active_ocn, &
          pause_active_wav, &
+         pause_active_iac, &
          pause_active_glc, &
          pause_active_ice, &
          pause_active_rof, &
@@ -390,6 +404,7 @@ contains
          data_assimilation_cpl, &
          data_assimilation_ocn, &
          data_assimilation_wav, &
+         data_assimilation_iac, &
          data_assimilation_glc, &
          data_assimilation_ice, &
          data_assimilation_rof, &
@@ -403,6 +418,7 @@ contains
          atm_cpl_offset, lnd_cpl_offset, ocn_cpl_offset,         &
          ice_cpl_offset, glc_cpl_dt, glc_cpl_offset, glc_avg_period, &
          wav_cpl_dt, wav_cpl_offset, esp_cpl_dt, esp_cpl_offset, &
+         iac_cpl_dt, iac_cpl_offset,                             &
          rof_cpl_dt, rof_cpl_offset, esp_run_on_pause, end_restart
     !-------------------------------------------------------------------------------
     ! Notes:
@@ -417,6 +433,7 @@ contains
     SyncClock%ECP(seq_timemgr_nclock_rof)%EClock     => EClock_rof
     SyncClock%ECP(seq_timemgr_nclock_wav)%EClock     => EClock_wav
     SyncClock%ECP(seq_timemgr_nclock_esp)%EClock     => EClock_esp
+    SyncClock%ECP(seq_timemgr_nclock_iac)%EClock     => EClock_iac
 
     call mpi_comm_rank(mpicom,iam,ierr)
 
@@ -447,6 +464,7 @@ contains
        pause_active_ice = .false.
        pause_active_rof = .false.
        pause_active_lnd = .false.
+       pause_active_iac = .false.
        data_assimilation_atm = .false.
        data_assimilation_cpl = .false.
        data_assimilation_ocn = .false.
@@ -455,6 +473,7 @@ contains
        data_assimilation_ice = .false.
        data_assimilation_rof = .false.
        data_assimilation_lnd = .false.
+       data_assimilation_iac = .false.
 
        history_option   = seq_timemgr_optNever
        history_n        = -1
@@ -483,6 +502,7 @@ contains
        rof_cpl_dt       = 0
        wav_cpl_dt       = 0
        esp_cpl_dt       = 0
+       iac_cpl_dt       = 0
        atm_cpl_offset   = 0
        lnd_cpl_offset   = 0
        ice_cpl_offset   = 0
@@ -491,6 +511,7 @@ contains
        rof_cpl_offset   = 0
        wav_cpl_offset   = 0
        esp_cpl_offset   = 0
+       iac_cpl_offset   = 0
        esp_run_on_pause = .true.
        end_restart      = .true.
 
@@ -546,6 +567,7 @@ contains
        if (glc_cpl_dt == 0) glc_cpl_dt = atm_cpl_dt ! Copy atm coupling time into glc
        if (wav_cpl_dt == 0) wav_cpl_dt = atm_cpl_dt ! Copy atm coupling time into wav
        if (esp_cpl_dt == 0) esp_cpl_dt = atm_cpl_dt ! Copy atm coupling time into esp
+       if (iac_cpl_dt == 0) iac_cpl_dt = atm_cpl_dt ! Copy atm coupling time into iac
 
        if ( ref_ymd == 0 ) then
           ref_ymd = start_ymd
@@ -628,6 +650,7 @@ contains
        write(logunit,F0I) trim(subname),' rof_cpl_dt     = ',rof_cpl_dt
        write(logunit,F0I) trim(subname),' wav_cpl_dt     = ',wav_cpl_dt
        write(logunit,F0I) trim(subname),' esp_cpl_dt     = ',esp_cpl_dt
+       write(logunit,F0I) trim(subname),' iac_cpl_dt     = ',iac_cpl_dt
        write(logunit,F0I) trim(subname),' atm_cpl_offset = ',atm_cpl_offset
        write(logunit,F0I) trim(subname),' lnd_cpl_offset = ',lnd_cpl_offset
        write(logunit,F0I) trim(subname),' ice_cpl_offset = ',ice_cpl_offset
@@ -636,6 +659,7 @@ contains
        write(logunit,F0I) trim(subname),' rof_cpl_offset = ',rof_cpl_offset
        write(logunit,F0I) trim(subname),' wav_cpl_offset = ',wav_cpl_offset
        write(logunit,F0I) trim(subname),' esp_cpl_offset = ',esp_cpl_offset
+       write(logunit,F0I) trim(subname),' iac_cpl_offset = ',iac_cpl_offset
        write(logunit,F0A) ' '
 
        !---------------------------------------------------------------------------
@@ -647,13 +671,12 @@ contains
             lnd_cpl_dt /= atm_cpl_dt .or. &
             ice_cpl_dt /= atm_cpl_dt .or. &
             ocn_cpl_dt <= 0 .or. glc_cpl_dt <= 0 .or. rof_cpl_dt <=0 .or. &
-            wav_cpl_dt <=0 .or. esp_cpl_dt <=0) then
+            wav_cpl_dt <=0 .or. esp_cpl_dt <=0 .or. iac_cpl_dt <=0) then
           write(logunit,*) trim(subname),' ERROR: aliogrwe _cpl_dt = ', &
                atm_cpl_dt, lnd_cpl_dt, ice_cpl_dt, ocn_cpl_dt, glc_cpl_dt, &
-               rof_cpl_dt, wav_cpl_dt, esp_cpl_dt
+               rof_cpl_dt, wav_cpl_dt, esp_cpl_dt, iac_cpl_dt
           call shr_sys_abort( subname//': ERROR coupling intervals invalid' )
        end if
-
        ! --- Coupling offsets --------------------------------------------------
        if ( abs(atm_cpl_offset) > atm_cpl_dt .or. &
             abs(lnd_cpl_offset) > lnd_cpl_dt .or. &
@@ -662,10 +685,12 @@ contains
             abs(rof_cpl_offset) > rof_cpl_dt .or. &
             abs(wav_cpl_offset) > wav_cpl_dt .or. &
             abs(esp_cpl_offset) > esp_cpl_dt .or. &
+            abs(iac_cpl_offset) > iac_cpl_dt .or. &
             abs(ocn_cpl_offset) > ocn_cpl_dt) then
           write(logunit,*) trim(subname),' ERROR: aliogrwe _cpl_offset = ', &
                atm_cpl_offset, lnd_cpl_offset, ice_cpl_offset, ocn_cpl_offset, &
-               glc_cpl_offset, rof_cpl_offset, wav_cpl_offset, esp_cpl_offset
+               glc_cpl_offset, rof_cpl_offset, wav_cpl_offset, esp_cpl_offset, &
+               iac_cpl_offset
           call shr_sys_abort( subname//': ERROR coupling offsets invalid' )
        end if
 
@@ -699,6 +724,7 @@ contains
     call shr_mpi_bcast(pause_active_ice,      mpicom )
     call shr_mpi_bcast(pause_active_rof,      mpicom )
     call shr_mpi_bcast(pause_active_lnd,      mpicom )
+    call shr_mpi_bcast(pause_active_iac,      mpicom )
     call shr_mpi_bcast(data_assimilation_atm, mpicom )
     call shr_mpi_bcast(data_assimilation_cpl, mpicom )
     call shr_mpi_bcast(data_assimilation_ocn, mpicom )
@@ -707,6 +733,7 @@ contains
     call shr_mpi_bcast(data_assimilation_ice, mpicom )
     call shr_mpi_bcast(data_assimilation_rof, mpicom )
     call shr_mpi_bcast(data_assimilation_lnd, mpicom )
+    call shr_mpi_bcast(data_assimilation_iac, mpicom )
 
     call shr_mpi_bcast( history_n,            mpicom )
     call shr_mpi_bcast( history_option,       mpicom )
@@ -735,6 +762,7 @@ contains
     call shr_mpi_bcast( rof_cpl_dt,           mpicom )
     call shr_mpi_bcast( wav_cpl_dt,           mpicom )
     call shr_mpi_bcast( esp_cpl_dt,           mpicom )
+    call shr_mpi_bcast( iac_cpl_dt,           mpicom )
     call shr_mpi_bcast( atm_cpl_offset,       mpicom )
     call shr_mpi_bcast( lnd_cpl_offset,       mpicom )
     call shr_mpi_bcast( ice_cpl_offset,       mpicom )
@@ -743,6 +771,7 @@ contains
     call shr_mpi_bcast( rof_cpl_offset,       mpicom )
     call shr_mpi_bcast( wav_cpl_offset,       mpicom )
     call shr_mpi_bcast( esp_cpl_offset,       mpicom )
+    call shr_mpi_bcast( iac_cpl_offset,       mpicom )
     call shr_mpi_bcast( esp_run_on_pause,     mpicom )
     call shr_mpi_bcast( end_restart,          mpicom )
 
@@ -784,6 +813,7 @@ contains
     pause_active(seq_timemgr_nclock_ice) = pause_active_ice
     pause_active(seq_timemgr_nclock_rof) = pause_active_rof
     pause_active(seq_timemgr_nclock_lnd) = pause_active_lnd
+    pause_active(seq_timemgr_nclock_iac) = pause_active_iac
 
     ! Figure out which compoments need to do post-data assimilation processing
     data_assimilation_active(seq_timemgr_nclock_atm) = data_assimilation_atm
@@ -794,6 +824,7 @@ contains
     data_assimilation_active(seq_timemgr_nclock_ice) = data_assimilation_ice
     data_assimilation_active(seq_timemgr_nclock_rof) = data_assimilation_rof
     data_assimilation_active(seq_timemgr_nclock_lnd) = data_assimilation_lnd
+    data_assimilation_active(seq_timemgr_nclock_iac) = data_assimilation_iac
 
     if ( ANY(pause_active) .and.                                              &
          (trim(pause_option) /= seq_timemgr_optNONE)  .and.                   &
@@ -817,7 +848,7 @@ contains
        call shr_sys_abort( subname//'ERROR:: bad calendar for ESMF' )
     end if
 
-    seq_timemgr_cal = ESMF_CalendarCreate( name='CCSM_'//seq_timemgr_calendar, &
+    seq_timemgr_cal = ESMF_CalendarCreate( name='CIME_'//seq_timemgr_calendar, &
          calkindflag=esmf_caltype, rc=rc )
     call seq_timemgr_ESMFCodeCheck( rc, subname//': error return from ESMF_CalendarCreate' )
 
@@ -838,6 +869,7 @@ contains
     dtime(seq_timemgr_nclock_rof     ) = rof_cpl_dt
     dtime(seq_timemgr_nclock_wav     ) = wav_cpl_dt
     dtime(seq_timemgr_nclock_esp     ) = esp_cpl_dt
+    dtime(seq_timemgr_nclock_iac     ) = iac_cpl_dt
 
     ! --- this finds the min of dtime excluding the driver value ---
     dtime(seq_timemgr_nclock_drv) = maxval(dtime)
@@ -852,7 +884,7 @@ contains
           write(logunit,*) trim(subname),' ERROR: dtime inconsistent = ',dtime
           call shr_sys_abort( subname//' :coupling intervals not compatible' )
        endif
-       if (pause_active(n) .and. (dtime(n) < min_dt)) then
+       if (pause_active(n) .and. (dtime(n) <= min_dt)) then
           min_dt = dtime(n)
           seq_timemgr_pause_sig_index = n
        end if
@@ -868,9 +900,10 @@ contains
     end if
 
     ! --- Initialize component and driver clocks and alarms common to components and driver clocks ---
-
+    call ESMF_TimeIntervalSet( CplTimeStep, s=dtime(seq_timemgr_nclock_drv), rc=rc )
     do n = 1,max_clocks
        call ESMF_TimeIntervalSet( TimeStep, s=dtime(n), rc=rc )
+
        call seq_timemgr_ESMFCodeCheck( rc, subname//': error ESMF_TimeIntervalSet' )
 
        call seq_timemgr_EClockInit( TimeStep, StartTime, RefTime, CurrTime, SyncClock%ECP(n)%EClock)
@@ -889,6 +922,7 @@ contains
             opt_ymd = stop_ymd,            &
             opt_tod = stop_tod,            &
             RefTime = CurrTime,            &
+            cplTimeStep = cplTimeStep, &
             alarmname = trim(seq_timemgr_alarm_stop))
 
        call seq_timemgr_alarmInit(SyncClock%ECP(n)%EClock, &
@@ -905,6 +939,7 @@ contains
             opt_n   = restart_n,           &
             opt_ymd = restart_ymd,         &
             RefTime = CurrTime,            &
+            cplTimeStep = cplTimeStep, &
             alarmname = trim(seq_timemgr_alarm_restart))
 
        call seq_timemgr_alarmInit(SyncClock%ECP(n)%EClock, &
@@ -913,6 +948,7 @@ contains
             opt_n   = history_n,           &
             opt_ymd = history_ymd,         &
             RefTime = StartTime,           &
+            cplTimeStep = cplTimeStep, &
             alarmname = trim(seq_timemgr_alarm_history))
 
        call seq_timemgr_alarmInit(SyncClock%ECP(n)%EClock, &
@@ -921,6 +957,7 @@ contains
             opt_n   = histavg_n,           &
             opt_ymd = histavg_ymd,         &
             RefTime = StartTime,           &
+            cplTimeStep = cplTimeStep, &
             alarmname = trim(seq_timemgr_alarm_histavg))
 
        call seq_timemgr_alarmInit(SyncClock%ECP(n)%EClock, &
@@ -929,6 +966,7 @@ contains
             opt_n   = barrier_n,           &
             opt_ymd = barrier_ymd,         &
             RefTime = CurrTime,            &
+            cplTimeStep = cplTimeStep, &
             alarmname = trim(seq_timemgr_alarm_barrier))
 
        call seq_timemgr_alarmInit(SyncClock%ECP(n)%EClock, &
@@ -937,15 +975,23 @@ contains
             opt_n   = tprof_n,             &
             opt_ymd = tprof_ymd,           &
             RefTime = StartTime,           &
+            cplTimeStep = cplTimeStep, &
             alarmname = trim(seq_timemgr_alarm_tprof))
 
        call ESMF_AlarmGet(SyncClock%EAlarm(n,seq_timemgr_nalarm_stop), RingTime=StopTime1, rc=rc )
        call ESMF_AlarmGet(SyncClock%EAlarm(n,seq_timemgr_nalarm_datestop), RingTime=StopTime2, rc=rc )
+
        if (StopTime2 < StopTime1) then
-          call ESMF_ClockSet(SyncClock%ECP(n)%EClock, StopTime=StopTime2)
+          StopTime = StopTime2
        else
-          call ESMF_ClockSet(SyncClock%ECP(n)%EClock, StopTime=StopTime1)
+          StopTime = StopTime1
        endif
+       if (n == 1) then
+          minStopTIme = StopTime
+       elseif (StopTime < minStopTime) then
+          minStopTime = StopTime
+       endif
+       call ESMF_ClockSet(SyncClock%ECP(n)%EClock, StopTime=StopTime)
 
        ! Set the pause option if pause/resume is active
        if (pause_active(n)) then
@@ -986,6 +1032,10 @@ contains
     offset(seq_timemgr_nclock_rof)     = rof_cpl_offset
     offset(seq_timemgr_nclock_wav)     = wav_cpl_offset
     offset(seq_timemgr_nclock_esp)     = esp_cpl_offset
+    offset(seq_timemgr_nclock_iac)     = iac_cpl_offset
+
+    call seq_timemgr_alarmGet(SyncClock%EAlarm(seq_timemgr_nclock_drv, &
+         seq_timemgr_nalarm_restart), IntSec=drvRestInterval)
 
     do n = 1,max_clocks
        if (abs(offset(n)) > dtime(n)) then
@@ -999,6 +1049,21 @@ contains
        if (mod(offset(n),dtime(seq_timemgr_nclock_drv)) /= 0) then
           write(logunit,*) subname,' ERROR: offset not multiple',n,dtime(seq_timemgr_nclock_drv),offset(n)
           call shr_sys_abort()
+       endif
+       call ESMF_TimeIntervalSet( TimeStep, s=dtime(n), rc=rc )
+       if(CurrTime + TimeStep > minStopTime ) then
+          write(logunit,*) subname//" WARNING: Stop time too short, not all components will be advanced &
+                                    &and restarts won't be written"
+       endif
+       if (n /= seq_timemgr_nclock_esp .and. trim(restart_option) .ne. &
+            trim(seq_timemgr_optNone) .and. &
+            trim(restart_option) .ne. trim(seq_timemgr_optNever)) then
+             call seq_timemgr_alarmGet(SyncClock%EAlarm(n,seq_timemgr_nalarm_restart), IntSec=RestInterval)
+             if (RestInterval .ne. drvRestInterval) then
+                write(logunit,*) subname, 'RestInterval=',RestInterval,&
+                     ' drvrestinterval=',drvrestinterval
+                call shr_sys_abort(trim(subname)//"Component RestInterval inconsistant with driver")
+             endif
        endif
     enddo
 
@@ -1048,6 +1113,15 @@ contains
          opt_n   = dtime(seq_timemgr_nclock_wav), &
          RefTime = OffsetTime,                    &
          alarmname = trim(seq_timemgr_alarm_wavrun))
+
+    call ESMF_TimeIntervalSet( TimeStep, s=offset(seq_timemgr_nclock_iac), rc=rc )
+    OffsetTime = CurrTime + TimeStep
+    call seq_timemgr_alarmInit(SyncClock%ECP(seq_timemgr_nclock_drv)%EClock, &
+       EAlarm  = SyncClock%EAlarm(seq_timemgr_nclock_drv,seq_timemgr_nalarm_iacrun),  &
+       option  = seq_timemgr_optNSeconds,       &
+       opt_n   = dtime(seq_timemgr_nclock_iac), &
+       RefTime = OffsetTime,                    &
+       alarmname = trim(seq_timemgr_alarm_iacrun))
 
     call ESMF_TimeIntervalSet( TimeStep, s=offset(seq_timemgr_nclock_glc), rc=rc )
     OffsetTime = CurrTime + TimeStep
@@ -1393,7 +1467,7 @@ contains
   !
   ! !INTERFACE: ------------------------------------------------------------------
 
-  subroutine seq_timemgr_alarmInit( EClock, EAlarm, option, opt_n, opt_ymd, opt_tod, RefTime, alarmname)
+  subroutine seq_timemgr_alarmInit( EClock, EAlarm, option, opt_n, opt_ymd, opt_tod, RefTime, cplTimeStep, alarmname)
 
     implicit none
 
@@ -1405,6 +1479,7 @@ contains
     integer(SHR_KIND_IN),optional, intent(IN)    :: opt_n     ! alarm freq
     integer(SHR_KIND_IN),optional, intent(IN)    :: opt_ymd   ! alarm ymd
     integer(SHR_KIND_IN),optional, intent(IN)    :: opt_tod   ! alarm tod (sec)
+    type(ESMF_TimeInterval), optional, intent(IN) :: CplTimeStep ! coupler timestep for nstep alarm option
     type(ESMF_Time)     ,optional, intent(IN)    :: RefTime   ! ref time
     character(len=*)    ,optional, intent(IN)    :: alarmname ! alarm name
 
@@ -1497,13 +1572,21 @@ contains
        call ESMF_TimeSet( NextAlarm, yy=cyy, mm=cmm, dd=opt_n, s=0, calendar=seq_timemgr_cal, rc=rc )
 
     case (seq_timemgr_optNSteps)
-       call ESMF_ClockGet(EClock, TimeStep=AlarmInterval, rc=rc)
+       if (present(CplTimeStep)) then
+          AlarmInterval = CplTimeStep
+       else
+          call shr_sys_abort(subname//trim(option)//' requires CplTimeStep')
+       endif
        if (.not.present(opt_n)) call shr_sys_abort(subname//trim(option)//' requires opt_n')
        if (opt_n <= 0)  call shr_sys_abort(subname//trim(option)//' invalid opt_n')
        AlarmInterval = AlarmInterval * opt_n
 
     case (seq_timemgr_optNStep)
-       call ESMF_ClockGet(EClock, TimeStep=AlarmInterval, rc=rc)
+       if (present(CplTimeStep)) then
+          AlarmInterval = CplTimeStep
+       else
+          call shr_sys_abort(subname//trim(option)//' requires CplTimeStep')
+       endif
        if (.not.present(opt_n)) call shr_sys_abort(subname//trim(option)//' requires opt_n')
        if (opt_n <= 0)  call shr_sys_abort(subname//trim(option)//' invalid opt_n')
        AlarmInterval = AlarmInterval * opt_n
@@ -2200,6 +2283,8 @@ contains
        seq_timemgr_data_assimilation_active = data_assimilation_active(seq_timemgr_nclock_rof)
     case ('lnd')
        seq_timemgr_data_assimilation_active = data_assimilation_active(seq_timemgr_nclock_lnd)
+    case ('iac')
+       seq_timemgr_data_assimilation_active = data_assimilation_active(seq_timemgr_nclock_iac)
     case ('esp')
        seq_timemgr_data_assimilation_active = .FALSE.
     case default
@@ -2340,7 +2425,7 @@ contains
   !
   ! Private method:
   !
-  ! Setup the ESMF clock inside the wrapped CCSM clock
+  ! Setup the ESMF clock inside the wrapped CIME clock
   !
   ! !INTERFACE: ------------------------------------------------------------------
 
@@ -2366,7 +2451,7 @@ contains
     ! Notes:
     !-------------------------------------------------------------------------------
 
-    description = 'CCSM shared Time-manager clock'
+    description = 'CIME shared Time-manager clock'
 
     ! ------ Create ESMF Clock with input characteristics -------------------
     ! --- NOTE: StopTime is required in interface but not used, so use  -----

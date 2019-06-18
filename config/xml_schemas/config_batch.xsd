@@ -17,6 +17,7 @@
   <xs:element name="batch_directive" type="xs:string"/>
   <xs:element name="jobid_pattern" type="xs:string"/>
   <xs:element name="depend_string" type="xs:string"/>
+  <xs:element name="depend_allow_string" type="xs:string"/>
   <xs:element name="depend_separator" type="xs:string"/>
   <xs:element name="walltime_format" type="xs:string"/>
   <xs:element name="batch_mail_flag" type="xs:string"/>
@@ -28,6 +29,7 @@
   <xs:element name="walltime" type="xs:string"/>
   <xs:element name="dependency" type="xs:string"/>
   <xs:element name="prereq" type="xs:string"/>
+  <xs:element name="unknown_queue_directives" type="xs:string"/>
 
   <!-- complex elements -->
 
@@ -71,6 +73,7 @@
   <!-- depend_string: How to indicate to batch system that this job should not run until
        a previous job has completed successfully -->
         <xs:element minOccurs="0" ref="depend_string"/>
+	<xs:element minOccurs="0" ref="depend_allow_string"/>
 
   <!-- depend_separator: How to separate multiple batch job dependencies -->
         <xs:element minOccurs="0" ref="depend_separator"/>
@@ -94,6 +97,14 @@
   <!-- directives: A list of fields to provide in the script directives section,
        be careful that these do not conflict with submit_args above -->
         <xs:element minOccurs="0" maxOccurs="unbounded" ref="directives"/>
+
+  <!-- unknown_queue_directives: If the queue is not a known queue on
+       this machine, this specifies the queue name for which directives
+       are taken. i.e., assume that all unknown queues use the same
+       directives as this queue. (If this element is not present then
+       unknown queues use directives for the default queue on this
+       machine.) -->
+        <xs:element minOccurs="0" ref="unknown_queue_directives"/>
 
   <!-- queues: The list of queue options for this machine, not all system queues need be listed
        attributes of this field include walltimemin, walltimemax, nodemin and nodemax and strict
@@ -136,6 +147,9 @@
         <xs:element maxOccurs="unbounded" ref="directive"/>
       </xs:sequence>
       <xs:attribute ref="queue"/>
+      <xs:attribute name="compiler"/>
+      <xs:attribute name="mpilib"/>
+      <xs:attribute name="threaded" type="xs:boolean"/>
     </xs:complexType>
   </xs:element>
 
@@ -157,7 +171,7 @@
   <xs:element name="queue">
     <xs:complexType>
       <xs:simpleContent>
-        <xs:extension base="xs:NCName">
+        <xs:extension base="xs:string">
           <xs:attribute name="default" type="xs:boolean"/>
           <xs:attribute name="strict" type="xs:boolean"/>
           <xs:attribute name="nodemax" type="xs:integer"/>

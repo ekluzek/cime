@@ -4,7 +4,7 @@ Interface to the config_machines.xml file.  This class inherits from GenericXML.
 from CIME.XML.standard_module_setup import *
 from CIME.XML.generic_xml import GenericXML
 from CIME.XML.files import Files
-from CIME.utils import convert_to_unknown_type
+from CIME.utils import convert_to_unknown_type, get_cime_config
 
 import socket
 
@@ -46,7 +46,11 @@ class Machines(GenericXML):
             if "CIME_MACHINE" in os.environ:
                 machine = os.environ["CIME_MACHINE"]
             else:
-                machine = self.probe_machine_name()
+                cime_config = get_cime_config()
+                if cime_config.has_option("main", "machine"):
+                    machine = cime_config.get("main", "machine")
+                if machine is None:
+                    machine = self.probe_machine_name()
 
         expect(machine is not None, "Could not initialize machine object from {} or {}".format(infile, local_infile))
         self.set_machine(machine)
@@ -155,10 +159,10 @@ class Machines(GenericXML):
         >>> machobj = Machines(machine="melvin")
         >>> machobj.get_machine_name()
         'melvin'
-        >>> machobj.set_machine("trump")
+        >>> machobj.set_machine("trump") # doctest: +IGNORE_EXCEPTION_DETAIL
         Traceback (most recent call last):
         ...
-        SystemExit: ERROR: No machine trump found
+        CIMEError: ERROR: No machine trump found
         """
         if machine == "Query":
             self.machine = machine
@@ -186,11 +190,6 @@ class Machines(GenericXML):
             node = self.get_optional_child(name, root=self.machine_node, attributes=attributes)
             if node is not None:
                 value = self.text(node)
-
-        if value is None:
-            # if all else fails
-            value = GenericXML.get_value(self, name)
-
         if resolved:
             if value is not None:
                 value = self.get_resolved_value(value)
@@ -229,7 +228,13 @@ class Machines(GenericXML):
         """
         Get the compiler to use from the list of COMPILERS
         """
-        return self.get_field_from_list("COMPILERS")
+        cime_config = get_cime_config()
+        if cime_config.has_option('main','COMPILER'):
+            value = cime_config.get('main', 'COMPILER')
+            expect(self.is_valid_compiler(value), "User-selected compiler {} is not supported on machine {}".format(value, self.machine))
+        else:
+            value = self.get_field_from_list("COMPILERS")
+        return value
 
     def get_default_MPIlib(self, attributes=None):
         """
@@ -295,6 +300,7 @@ class Machines(GenericXML):
     def set_value(self, vid, value, subgroup=None, ignore_type=True):
         tmproot = self.root
         self.root = self.machine_node
+        #pylint: disable=assignment-from-no-return
         result = super(Machines, self).set_value(vid, value, subgroup=subgroup,
                                                ignore_type=ignore_type)
         self.root = tmproot
@@ -320,3 +326,25 @@ class Machines(GenericXML):
                 print("      pes/node       ",self.text(max_mpitasks_per_node))
             if max_tasks_per_node is not None:
                 print("      max_tasks/node ",self.text(max_tasks_per_node))
+
+    def return_values(self):
+        """ return a dictionary of machine info
+        This routine is used by external tools in https://github.com/NCAR/CESM_xml2html
+        """
+        machines = self.get_children("machine")
+        mach_dict = dict()
+        logger.debug("Machines return values")
+        for machine in machines:
+            name = self.get(machine, "MACH")
+            desc = self.get_child("DESC", root=machine)
+            mach_dict[(name,"description")] = self.text(desc)
+            os_  = self.get_child("OS", root=machine)
+            mach_dict[(name,"os")] = self.text(os_)
+            compilers = self.get_child("COMPILERS", root=machine)
+            mach_dict[(name,"compilers")] = self.text(compilers)
+            max_tasks_per_node = self.get_child("MAX_TASKS_PER_NODE", root=machine)
+            mach_dict[(name,"max_tasks_per_node")] = self.text(max_tasks_per_node)
+            max_mpitasks_per_node = self.get_child("MAX_MPITASKS_PER_NODE", root=machine)
+            mach_dict[(name,"max_mpitasks_per_node")] = self.text(max_mpitasks_per_node)
+
+        return mach_dict

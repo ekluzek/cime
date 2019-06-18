@@ -10,7 +10,9 @@
 #include <sys/time.h>
 
 #ifndef NO_COMM_F2C
+#ifndef HAVE_COMM_F2C
 #define HAVE_COMM_F2C
+#endif
 #endif
 
 #ifndef MIN
@@ -58,6 +60,8 @@ typedef struct {
   double accum;             /* accumulated time */
   float max;                /* longest time for start/stop pair */
   float min;                /* shortest time for start/stop pair */
+  float prev_min;           /* previous shortest time for start/stop pair */
+  int latest_is_min;        /* whether min is current latest (1) or not (0) */
 } Wallstats;
 
 typedef struct {

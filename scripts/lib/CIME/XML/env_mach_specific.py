@@ -15,12 +15,12 @@ logger = logging.getLogger(__name__)
 class EnvMachSpecific(EnvBase):
     # pylint: disable=unused-argument
     def __init__(self, caseroot=None, infile="env_mach_specific.xml",
-                 components=None, unit_testing=False):
+                 components=None, unit_testing=False, read_only=False):
         """
         initialize an object interface to file env_mach_specific.xml in the case directory
         """
         schema = os.path.join(get_cime_root(), "config", "xml_schemas", "env_mach_specific.xsd")
-        EnvBase.__init__(self, caseroot, infile, schema=schema)
+        EnvBase.__init__(self, caseroot, infile, schema=schema, read_only=read_only)
         self._allowed_mpi_attributes = ("compiler", "mpilib", "threaded", "unit_testing", "queue")
         self._unit_testing = unit_testing
 
@@ -39,7 +39,7 @@ class EnvMachSpecific(EnvBase):
                 if len(nodes) == 0:
                     value = self.text(default_run_exe_node) if item == "run_exe" else self.text(default_run_misc_suffix_node)
                 else:
-                    value = nodes[0].text
+                    value = self.text(nodes[0])
 
                 entity_node = self.make_child("entry", {"id":item, "value":value}, root=group_node)
 
@@ -49,6 +49,7 @@ class EnvMachSpecific(EnvBase):
             else:
                 for node in nodes:
                     self.add_child(node)
+
     def _get_modules_for_case(self, case, job=None):
         module_nodes = self.get_children("modules", root=self.get_child("module_system"))
         modules_to_load = None
@@ -81,7 +82,6 @@ class EnvMachSpecific(EnvBase):
             self._load_envs(envs_to_set, verbose=verbose)
 
         self._get_resources_for_case(case)
-
 
     def _get_resources_for_case(self, case):
         resource_nodes = self.get_children("resource_limits")
@@ -141,12 +141,31 @@ class EnvMachSpecific(EnvBase):
         run_cmd_no_fail("echo -e '\n' && env", arg_stdout=filename)
 
     def make_env_mach_specific_file(self, shell, case):
+        module_system = self.get_module_system_type()
+        sh_init_cmd = self.get_module_system_init_path(shell)
+        sh_mod_cmd = self.get_module_system_cmd_path(shell)
+        lines = ["# This file is for user convenience only and is not used by the model"]
+
+        lines.append("# Changes to this file will be ignored and overwritten")
+        lines.append("# Changes to the environment should be made in env_mach_specific.xml")
+        lines.append("# Run ./case.setup --reset to regenerate this file")
+        if sh_init_cmd:
+            lines.append("source {}".format(sh_init_cmd))
+
+        if "SOFTENV_ALIASES" in os.environ:
+            lines.append("source $SOFTENV_ALIASES")
+        if "SOFTENV_LOAD" in os.environ:
+            lines.append("source $SOFTENV_LOAD")
+
         modules_to_load = self._get_modules_for_case(case)
         envs_to_set = self._get_envs_for_case(case)
         filename = ".env_mach_specific.{}".format(shell)
-        lines = []
         if modules_to_load is not None:
-            lines.extend(self._get_module_commands(modules_to_load, shell))
+            if module_system == "module":
+                lines.extend(self._get_module_commands(modules_to_load, shell))
+            else:
+                for action, argument in modules_to_load:
+                    lines.append("{} {} {}".format(sh_mod_cmd, action, "" if argument is None else argument))
 
         if envs_to_set is not None:
             for env_name, env_value in envs_to_set:
@@ -164,15 +183,13 @@ class EnvMachSpecific(EnvBase):
 
     def _load_envs(self, envs_to_set, verbose=False):
         for env_name, env_value in envs_to_set:
+            logger_func = logger.warning if verbose else logger.debug
             if env_value is None and env_name in os.environ:
                 del os.environ[env_name]
+                logger_func("Unsetting Environment {}".format(env_name))
             elif env_value is not None:
                 os.environ[env_name] = env_value
-            if verbose:
-                if env_value is not None:
-                    logger.warning("Setting Environment {}={}".format(env_name, env_value))
-                else:
-                    logger.warning("Unsetting Environment {}".format(env_name))
+                logger_func("Setting Environment {}={}".format(env_name, env_value))
 
     def _compute_module_actions(self, module_nodes, case, job=None):
         return self._compute_actions(module_nodes, "command", case, job=job)
@@ -230,12 +247,12 @@ class EnvMachSpecific(EnvBase):
 
     def _match(self, my_value, xml_value):
         if xml_value.startswith("!"):
-            result = re.match(xml_value[1:],str(my_value)) is None
+            result = re.match(xml_value[1:] + "$",str(my_value)) is None
         elif isinstance(my_value, bool):
             if my_value: result = xml_value == "TRUE"
             else: result = xml_value == "FALSE"
         else:
-            result = re.match(xml_value,str(my_value)) is not None
+            result = re.match(xml_value + "$",str(my_value)) is not None
 
         logger.debug("(env_mach_specific) _match {} {} {}".format(my_value, xml_value, result))
         return result
@@ -283,11 +300,9 @@ class EnvMachSpecific(EnvBase):
         return cmds
 
     def _load_module_modules(self, modules_to_load, verbose=False):
+        logger_func = logger.warning if verbose else logger.debug
         for cmd in self._get_module_commands(modules_to_load, "python"):
-            if verbose:
-                logger.warning("module command is {}".format(cmd))
-            else:
-                logger.debug("module command is {}".format(cmd))
+            logger_func("module command is {}".format(cmd))
             stat, py_module_code, errout = run_cmd(cmd)
             expect(stat==0 and (len(errout) == 0 or self.allow_error()),
                    "module command {} failed with message:\n{}".format(cmd, errout))
@@ -296,6 +311,7 @@ class EnvMachSpecific(EnvBase):
     def _load_modules_generic(self, modules_to_load, verbose=False):
         sh_init_cmd = self.get_module_system_init_path("sh")
         sh_mod_cmd = self.get_module_system_cmd_path("sh")
+        logger_func = logger.warning if verbose else logger.debug
 
         # Purpose is for environment management system that does not have
         # a python interface and therefore can only determine what they
@@ -315,10 +331,7 @@ class EnvMachSpecific(EnvBase):
         # Use null terminated lines to give us something more definitive to split on.
         # Env vars can contain newlines, so splitting on newlines can be ambiguous
         cmd += " && env -0"
-        if verbose:
-            logger.warning("cmd: {}".format(cmd))
-        else:
-            logger.debug("cmd: {}".format(cmd))
+        logger_func("cmd: {}".format(cmd))
         output = run_cmd_no_fail(cmd)
 
         ###################################################
@@ -393,7 +406,7 @@ class EnvMachSpecific(EnvBase):
         cmd_nodes = self.get_optional_child("cmd_path", attributes={"lang":lang}, root=self.get_child("module_system"))
         return self.text(cmd_nodes) if cmd_nodes is not None else None
 
-    def get_mpirun(self, case, attribs, job="case.run", exe_only=False):
+    def get_mpirun(self, case, attribs, job, exe_only=False):
         """
         Find best match, return (executable, {arg_name : text})
         """
@@ -439,7 +452,7 @@ class EnvMachSpecific(EnvBase):
 
         # if there are no special arguments required for mpi-serial it need not have an entry in config_machines.xml
         if "mpilib" in attribs and attribs["mpilib"] == "mpi-serial" and best_match is None:
-            return "",[]
+            return "",[],None,None
 
         expect(best_match is not None or default_match is not None,
                "Could not find a matching MPI for attributes: {}".format(attribs))
@@ -461,8 +474,18 @@ class EnvMachSpecific(EnvBase):
         exec_node = self.get_child("executable", root=the_match)
         expect(exec_node is not None,"No executable found")
         executable = self.text(exec_node)
+        run_exe = None
+        run_misc_suffix = None
 
-        return executable, args
+        run_exe_node = self.get_optional_child('run_exe', root=the_match)
+        if run_exe_node:
+            run_exe = self.text(run_exe_node)
+
+        run_misc_suffix_node = self.get_optional_child('run_misc_suffix', root=the_match)
+        if run_misc_suffix_node:
+            run_misc_suffix = self.text(run_misc_suffix_node)
+
+        return executable, args, run_exe, run_misc_suffix
 
     def get_type_info(self, vid):
         return "char"

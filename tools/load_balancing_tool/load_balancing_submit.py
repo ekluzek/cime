@@ -205,28 +205,29 @@ def load_balancing_submit(compset, res, pesfile, mpilib, compiler, project, mach
                           extra_options_file, test_id, force_purge, test_root):
 ################################################################################
     # Read in list of pes from given file
-    if not os.access(pesfile, os.R_OK):
-        logger.critical('ERROR: File %s not found', pesfile)
-        raise SystemExit(1)
+    expect(os.access(pesfile, os.R_OK), 'ERROR: File %s not found', pesfile)
+
     logger.info('Reading XML file %s. Searching for pesize entries:', pesfile)
     try:
         pesobj = Pes(pesfile)
     except ParseError:
-        logger.critical('ERROR: File %s not parseable', pesfile)
-        raise SystemExit(1)
+        expect(False, 'ERROR: File %s not parseable', pesfile)
 
     pesize_list = []
-    for node in pesobj.get_nodes('pes'):
-        pesize = node.get('pesize')
-        if not pesize:
-            logger.critical('No pesize for pes node in file %s', pesfile)
-        if pesize in pesize_list:
-            logger.critical('pesize %s duplicated in file %s', pesize, pesfile)
-        pesize_list.append(pesize)
+    grid_nodes = pesobj.get_children("grid")
+    for gnode in grid_nodes:
+        mach_nodes = pesobj.get_children("mach", root=gnode)
+        for mnode in mach_nodes:
+            pes_nodes = pesobj.get_children("pes", root=mnode)
+            for pnode in pes_nodes:
+                pesize = pesobj.get(pnode, 'pesize')
+                if not pesize:
+                    logger.critical('No pesize for pes node in file %s', pesfile)
+                if pesize in pesize_list:
+                    logger.critical('pesize %s duplicated in file %s', pesize, pesfile)
+                pesize_list.append(pesize)
 
-    if not pesize_list:
-        logger.critical('ERROR: No grid entries found in pes file %s', pesfile)
-        raise SystemExit(1)
+    expect(pesize_list, 'ERROR: No grid entries found in pes file {}'.format(pesfile))
 
     machobj = Machines(machine=machine)
     if test_root is None:
@@ -269,7 +270,7 @@ def load_balancing_submit(compset, res, pesfile, mpilib, compiler, project, mach
         testnames.append( testname)
         logger.info("test is {}".format(testname))
         with Case(testname) as case:
-            pes_ntasks, pes_nthrds, pes_rootpe, _ = \
+            pes_ntasks, pes_nthrds, pes_rootpe, _, _, _ = \
                                                     pesobj.find_pes_layout('any', 'any', 'any', pesize_opts=pesize_list.pop(0))
             for key in pes_ntasks:
                 case.set_value(key, pes_ntasks[key])

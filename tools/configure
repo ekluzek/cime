@@ -67,6 +67,11 @@ def parse_command_line(args):
     parser.add_argument("--clean", action="store_true",
                         help="Remove old Macros and env files before attempting to create new ones")
 
+    parser.add_argument("--comp-interface",
+                        default="mct",
+                        help="""The cime driver/cpl interface to use."""
+                        )
+
     argcnt = len(args)
     args = parser.parse_args()
     CIME.utils.parse_args_and_handle_standard_logging_options(args)
@@ -108,6 +113,20 @@ def parse_command_line(args):
            % compiler)
     opts['compiler'] = compiler
     opts['os'] = machobj.get_value('OS')
+    opts['comp_interface'] = args.comp_interface
+
+    if args.clean:
+        files = ["Macros.make", "Macros.cmake", "env_mach_specific.xml", ".env_mach_specific.sh",
+                 ".env_mach_specific.csh", "Depends.%s"%compiler, "Depends.%s"%args.machine,
+                  "Depends.%s.%s"%(args.machine,compiler)]
+        for file_ in files:
+            if os.path.isfile(file_):
+                logger.warn("Removing file %s"%file_)
+                os.remove(file_)
+        if argcnt == 2:
+            opts['clean_only'] = True
+            return opts
+
     # Set MPI library.
     if args.mpilib is not None:
         mpilib = args.mpilib
@@ -117,7 +136,7 @@ def parse_command_line(args):
         mpilib = machobj.get_default_MPIlib(attributes={"compiler":compiler})
         os.environ["MPILIB"] = mpilib
 
-    expect(opts['machobj'].is_valid_MPIlib(mpilib),
+    expect(opts['machobj'].is_valid_MPIlib(mpilib, attributes={"compiler":compiler}),
            "Invalid MPI library name given in MPILIB environment variable: %s" %
            mpilib)
     opts['mpilib'] = mpilib
@@ -133,25 +152,13 @@ def parse_command_line(args):
         os.environ["DEBUG"] = "FALSE"
     opts['debug'] = debug
 
-
-    if args.clean:
-        files = ["Macros.make", "Macros.cmake", "env_mach_specific.xml", ".env_mach_specific.sh",
-                 ".env_mach_specific.csh", "Depends.%s"%compiler, "Depends.%s"%args.machine,
-                  "Depends.%s.%s"%(args.machine,compiler)]
-        for file_ in files:
-            if os.path.isfile(file_):
-                logger.warn("Removing file %s"%file_)
-                os.remove(file_)
-        if argcnt == 2:
-            opts['clean_only'] = True
-
     return opts
 
 def _main():
     opts = parse_command_line(sys.argv)
     if "clean_only" not in opts or not opts["clean_only"]:
         configure(opts['machobj'], opts['output_dir'], opts['macros_format'],
-                  opts['compiler'], opts['mpilib'], opts['debug'], opts['os'])
+                  opts['compiler'], opts['mpilib'], opts['debug'], opts['comp_interface'], opts['os'])
 
 if __name__ == "__main__":
     _main()

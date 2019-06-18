@@ -3,15 +3,13 @@ CIME ERP test.  This class inherits from RestartTest
 
 This is a pes counts hybrid (open-MP/MPI) restart bfb test from
 startup.  This is just like an ERS test but the pe-counts/threading
-count are modified on retart.
+count are modified on restart.
 (1) Do an initial run with pes set up out of the box (suffix base)
 (2) Do a restart test with half the number of tasks and threads (suffix rest)
 """
 
 from CIME.XML.standard_module_setup import *
-from CIME.case_setup import case_setup
 from CIME.SystemTests.restart_tests import RestartTest
-from CIME.check_lockedfiles import *
 
 logger = logging.getLogger(__name__)
 
@@ -40,10 +38,10 @@ class ERP(RestartTest):
                 self._case.set_value("ROOTPE_{}".format(comp), int(rootpe/2))
 
         RestartTest._case_two_setup(self)
+        self._case.case_setup(test_mode=True, reset=True)
         # Note, some components, like CESM-CICE, have
         # decomposition information in env_build.xml that
         # needs to be regenerated for the above new tasks and thread counts
-        case_setup(self._case, test_mode=True, reset=True)
 
     def _case_one_custom_postrun_action(self):
         self.copy_case1_restarts_to_case2()

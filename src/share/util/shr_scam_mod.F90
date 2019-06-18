@@ -265,15 +265,19 @@ subroutine shr_scam_getCloseLatLonNC(ncid, targetLat,  targetLon, closeLat, clos
 
    end if
 
+   if (londimnames(1) .eq. 'ncol') then !-- Enforce for SE grids
+     closelatidx = 1
+   endif
+
+   if (londimnames(1) .eq. 'ncol') then !-- Enforce for SE grids
+     closelatidx = 1
+   endif
+
    if ( allocated(lats)        ) deallocate(lats)
    if ( allocated(lons)        ) deallocate(lons)
    if ( allocated(latdimnames) ) deallocate(latdimnames)
    if ( allocated(londimnames) ) deallocate(londimnames)
    if ( allocated(vars)        ) deallocate( vars )
-
-   if (londimnames(1) .eq. 'ncol') then !-- Enforce for SE grids
-     closelatidx = 1
-   endif
 
    return
 
@@ -423,7 +427,7 @@ subroutine shr_scam_getCloseLatLonPIO(pioid, targetLat,  targetLon, closeLat, cl
 
    if (latlen .eq. 1 .and. lonlen .gt. 1) then
      latlen=lonlen
-     islatitude=.false. ! if spectral element lat and lon 
+     islatitude=.false. ! if spectral element lat and lon
                         !   are on same array structure
      is_segrid=.true.
    else
@@ -910,7 +914,7 @@ subroutine get_close( targetlon, targetlat, nlon, lons, nlat, lats, closelonidx,
    real   (R8),allocatable  :: poslons(:)
    real   (R8)              :: postargetlon
    character(*),parameter :: subname = "(shr_scam_getclose) "
-   real   (R8) :: minpoint, testpoint 
+   real   (R8) :: minpoint, testpoint
    integer :: n
 !-------------------------------------------------------------------------------
 ! Notes:
@@ -990,4 +994,3 @@ end subroutine get_close
 !===============================================================================
 
 end module shr_scam_mod
-

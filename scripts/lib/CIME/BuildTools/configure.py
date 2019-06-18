@@ -15,16 +15,15 @@ respectively. These can be changed by setting the environment variables
 COMPILER, MPILIB, and DEBUG, respectively.
 """
 
-import shutil
 from CIME.XML.standard_module_setup import *
-from CIME.utils import expect
+from CIME.utils import expect, safe_copy
 from CIME.XML.compilers import Compilers
 from CIME.XML.env_mach_specific import EnvMachSpecific
 
 logger = logging.getLogger(__name__)
 
 def configure(machobj, output_dir, macros_format, compiler, mpilib, debug,
-              sysos, unit_testing=False):
+              comp_interface, sysos, unit_testing=False):
     """Add Macros, Depends, and env_mach_specific files to a directory.
 
     Arguments:
@@ -47,7 +46,7 @@ def configure(machobj, output_dir, macros_format, compiler, mpilib, debug,
 
     _copy_depends_files(machobj.get_machine_name(), machobj.machines_dir, output_dir, compiler)
     _generate_env_mach_specific(output_dir, machobj, compiler, mpilib,
-                                debug, sysos, unit_testing)
+                                debug, comp_interface, sysos, unit_testing)
 
 def _copy_depends_files(machine_name, machines_dir, output_dir, compiler):
     """
@@ -58,25 +57,28 @@ def _copy_depends_files(machine_name, machines_dir, output_dir, compiler):
     outputdfile = os.path.join(output_dir, "Depends.{}.{}".format(machine_name,compiler))
     if os.path.isfile(dfile):
         if not os.path.isfile(outputdfile):
-            shutil.copyfile(dfile, outputdfile)
+            safe_copy(dfile, outputdfile)
     else:
         for dep in (machine_name, compiler):
             dfile = os.path.join(machines_dir, "Depends.{}".format(dep))
             outputdfile = os.path.join(output_dir, "Depends.{}".format(dep))
             if os.path.isfile(dfile) and not os.path.isfile(outputdfile):
-                shutil.copyfile(dfile, outputdfile)
+                safe_copy(dfile, outputdfile)
 
 class FakeCase(object):
 
-    def __init__(self, compiler, mpilib, debug):
-        self._vals = {"COMPILER":compiler, "MPILIB":mpilib, "DEBUG":debug}
+    def __init__(self, compiler, mpilib, debug, comp_interface):
+        # PIO_VERSION is needed to parse config_machines.xml but isn't otherwise used
+        # by FakeCase
+        self._vals = {"COMPILER":compiler, "MPILIB":mpilib, "DEBUG":debug,
+                      "COMP_INTERFACE":comp_interface, "PIO_VERSION":2}
 
     def get_value(self, attrib):
         expect(attrib in self._vals, "FakeCase does not support getting value of '%s'" % attrib)
         return self._vals[attrib]
 
 def _generate_env_mach_specific(output_dir, machobj, compiler, mpilib, debug,
-                                sysos, unit_testing):
+                                comp_interface, sysos, unit_testing):
     """
     env_mach_specific generation.
     """
@@ -87,7 +89,7 @@ def _generate_env_mach_specific(output_dir, machobj, compiler, mpilib, debug,
     ems_file = EnvMachSpecific(output_dir, unit_testing=unit_testing)
     ems_file.populate(machobj)
     ems_file.write()
-    fake_case = FakeCase(compiler, mpilib, debug)
+    fake_case = FakeCase(compiler, mpilib, debug, comp_interface)
     ems_file.load_env(fake_case)
     for shell in ('sh', 'csh'):
         ems_file.make_env_mach_specific_file(shell, fake_case)

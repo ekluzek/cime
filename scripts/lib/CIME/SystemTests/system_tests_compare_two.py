@@ -37,9 +37,8 @@ In addition, they MAY require the following methods:
 from CIME.XML.standard_module_setup import *
 from CIME.SystemTests.system_tests_common import SystemTestsCommon
 from CIME.case import Case
-from CIME.case_submit import check_case
-from CIME.case_st_archive import archive_last_restarts
 from CIME.utils import get_model
+from CIME.test_status import *
 
 import shutil, os, glob
 
@@ -53,7 +52,8 @@ class SystemTestsCompareTwo(SystemTestsCommon):
                  run_two_suffix = 'test',
                  run_one_description = '',
                  run_two_description = '',
-                 multisubmit = False):
+                 multisubmit = False,
+                 ignore_fieldlist_diffs = False):
         """
         Initialize a SystemTestsCompareTwo object. Individual test cases that
         inherit from SystemTestsCompareTwo MUST call this __init__ method.
@@ -72,10 +72,16 @@ class SystemTestsCompareTwo(SystemTestsCommon):
                 when starting the second run. Defaults to ''.
             multisubmit (bool): Do first and second runs as different submissions.
                 Designed for tests with RESUBMIT=1
+            ignore_fieldlist_diffs (bool): If True, then: If the two cases differ only in
+                their field lists (i.e., all shared fields are bit-for-bit, but one case
+                has some diagnostic fields that are missing from the other case), treat
+                the two cases as identical. (This is needed for tests where one case
+                exercises an option that produces extra diagnostic fields.)
         """
         SystemTestsCommon.__init__(self, case)
 
         self._separate_builds = separate_builds
+        self._ignore_fieldlist_diffs = ignore_fieldlist_diffs
 
         # run_one_suffix is just used as the suffix for the netcdf files
         # produced by the first case; we may eventually remove this, but for now
@@ -109,7 +115,8 @@ class SystemTestsCompareTwo(SystemTestsCommon):
 
         self._setup_cases_if_not_yet_done()
 
-        self._multisubmit = multisubmit
+        self._multisubmit = multisubmit and self._case1.get_value("BATCH_SYSTEM") != "none"
+
     # ========================================================================
     # Methods that MUST be implemented by specific tests that inherit from this
     # base class
@@ -147,64 +154,63 @@ class SystemTestsCompareTwo(SystemTestsCommon):
         This should be written to refer to self._case: It will be called once with
         self._case pointing to case1, and once with self._case pointing to case2.
         """
-        pass
 
     def _case_one_custom_prerun_action(self):
         """
         Use to do arbitrary actions immediately before running case one
         """
-        pass
 
     def _case_two_custom_prerun_action(self):
         """
         Use to do arbitrary actions immediately before running case two
         """
-        pass
 
     def _case_one_custom_postrun_action(self):
         """
         Use to do arbitrary actions immediately after running case one
         """
-        pass
 
     def _case_two_custom_postrun_action(self):
         """
         Use to do arbitrary actions immediately after running case two
         """
-        pass
 
     # ========================================================================
     # Main public methods
     # ========================================================================
 
     def build_phase(self, sharedlib_only=False, model_only=False):
-        if self._separate_builds:
-            self._activate_case1()
-            self.build_indv(sharedlib_only=sharedlib_only, model_only=model_only)
-            self._activate_case2()
-            # Although we're doing separate builds, it still makes sense
-            # to share the sharedlibroot area with case1 so we can reuse
-            # pieces of the build from there.
-            if get_model() != "e3sm":
-                # We need to turn off this change for E3SM because it breaks
-                # the MPAS build system
-                self._case2.set_value("SHAREDLIBROOT",
-                                      self._case1.get_value("SHAREDLIBROOT"))
+        # Subtle issue: case1 is already in a writeable state since it tends to be opened
+        # with a with statement in all the API entrances in CIME. case2 was created via clone,
+        # not a with statement, so it's not in a writeable state, so we need to use a with
+        # statement here to put it in a writeable state.
+        with self._case2:
+            if self._separate_builds:
+                self._activate_case1()
+                self.build_indv(sharedlib_only=sharedlib_only, model_only=model_only)
+                self._activate_case2()
+                # Although we're doing separate builds, it still makes sense
+                # to share the sharedlibroot area with case1 so we can reuse
+                # pieces of the build from there.
+                if get_model() != "e3sm":
+                    # We need to turn off this change for E3SM because it breaks
+                    # the MPAS build system
+                    self._case2.set_value("SHAREDLIBROOT",
+                                          self._case1.get_value("SHAREDLIBROOT"))
 
-            self.build_indv(sharedlib_only=sharedlib_only, model_only=model_only)
-        else:
-            self._activate_case1()
-            self.build_indv(sharedlib_only=sharedlib_only, model_only=model_only)
-            # pio_typename may be changed during the build if the default is not a
-            # valid value for this build, update case2 to reflect this change
-            for comp in self._case1.get_values("COMP_CLASSES"):
-                comp_pio_typename = "{}_PIO_TYPENAME".format(comp)
-                self._case2.set_value(comp_pio_typename, self._case1.get_value(comp_pio_typename))
+                self.build_indv(sharedlib_only=sharedlib_only, model_only=model_only)
+            else:
+                self._activate_case1()
+                self.build_indv(sharedlib_only=sharedlib_only, model_only=model_only)
+                # pio_typename may be changed during the build if the default is not a
+                # valid value for this build, update case2 to reflect this change
+                for comp in self._case1.get_values("COMP_CLASSES"):
+                    comp_pio_typename = "{}_PIO_TYPENAME".format(comp)
+                    self._case2.set_value(comp_pio_typename, self._case1.get_value(comp_pio_typename))
 
-            # The following is needed when _case_two_setup has a case_setup call
-            # despite sharing the build (e.g., to change NTHRDS)
-            self._case2.set_value("BUILD_COMPLETE",True)
-            self._case2.flush()
+                # The following is needed when _case_two_setup has a case_setup call
+                # despite sharing the build (e.g., to change NTHRDS)
+                self._case2.set_value("BUILD_COMPLETE",True)
 
     def run_phase(self, success_change=False):  # pylint: disable=arguments-differ
         """
@@ -217,12 +223,19 @@ class SystemTestsCompareTwo(SystemTestsCommon):
         # First run
         if not self._multisubmit or first_phase:
             logger.info('Doing first run: ' + self._run_one_description)
+
+            # Add a PENDing compare phase so that we'll notice if the second part of compare two
+            # doesn't run.
+            with self._test_status:
+                self._test_status.set_status("{}_{}_{}".format(COMPARE_PHASE, self._run_one_suffix, self._run_two_suffix), TEST_PEND_STATUS)
+
             self._activate_case1()
             self._case_one_custom_prerun_action()
             self.run_indv(suffix = self._run_one_suffix)
             self._case_one_custom_postrun_action()
 
         # Second run
+        logger.info("_multisubmit {} first phase {}".format(self._multisubmit, first_phase))
         if not self._multisubmit or not first_phase:
             # Subtle issue: case1 is already in a writeable state since it tends to be opened
             # with a with statement in all the API entrances in CIME. case2 was created via clone,
@@ -231,9 +244,11 @@ class SystemTestsCompareTwo(SystemTestsCommon):
             with self._case2:
                 logger.info('Doing second run: ' + self._run_two_description)
                 self._activate_case2()
+                # This assures that case two namelists are populated
+                self._skip_pnl = False
                 # we need to make sure run2 is properly staged.
                 if run_type != "startup":
-                    check_case(self._case2)
+                    self._case2.check_case()
 
                 self._case_two_custom_prerun_action()
                 self.run_indv(suffix = self._run_two_suffix)
@@ -242,7 +257,9 @@ class SystemTestsCompareTwo(SystemTestsCommon):
             # Case1 is the "main" case, and we need to do the comparisons from there
             self._activate_case1()
             self._link_to_case2_output()
-            self._component_compare_test(self._run_one_suffix, self._run_two_suffix, success_change=success_change)
+            self._component_compare_test(self._run_one_suffix, self._run_two_suffix,
+                                         success_change=success_change,
+                                         ignore_fieldlist_diffs=self._ignore_fieldlist_diffs)
 
     def copy_case1_restarts_to_case2(self):
         """
@@ -254,9 +271,9 @@ class SystemTestsCompareTwo(SystemTestsCommon):
         files.
         """
         rundir2 = self._case2.get_value("RUNDIR")
-        archive_last_restarts(case = self._case1,
-                              archive_restdir = rundir2,
-                              link_to_restart_files = True)
+        self._case1.archive_last_restarts(archive_restdir = rundir2,
+                                          rundir=self._case1.get_value("RUNDIR"),
+                                          link_to_restart_files = True)
 
     # ========================================================================
     # Private methods
@@ -359,7 +376,7 @@ class SystemTestsCompareTwo(SystemTestsCommon):
                     rundir = self._get_case2_rundir())
                 self._write_info_to_case2_output_root()
                 self._setup_cases()
-            except:
+            except BaseException:
                 # If a problem occurred in setting up the test cases, it's
                 # important to remove the case2 directory: If it's kept around,
                 # that would signal that test setup was done successfully, and
@@ -455,14 +472,15 @@ class SystemTestsCompareTwo(SystemTestsCommon):
         # note that we print a warning to the log file if that happens, in the
         # caller of this method).
         self._case.flush()
+        # This assures that case one namelists are populated
+        # and creates the case.test script
+        self._case.case_setup(test_mode=False, reset=True)
 
         # Set up case 2
-        self._activate_case2()
-        self._common_setup()
-        self._case_two_setup()
-        # Flush the case so that, if errors occur later, then at least case2 is
-        # in a correct, post-setup state
-        self._case.flush()
+        with self._case2:
+            self._activate_case2()
+            self._common_setup()
+            self._case_two_setup()
 
         # Go back to case 1 to ensure that's where we are for any following code
         self._activate_case1()

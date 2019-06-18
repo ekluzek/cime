@@ -11,7 +11,7 @@
 
   <entry id="COMP_CLASSES">
     <type>char</type>
-    <default_value>CPL,ATM,LND,ICE,OCN,ROF,GLC,WAV,ESP</default_value>
+    <default_value>CPL,ATM,LND,ICE,OCN,ROF,GLC,WAV,IAC,ESP</default_value>
     <file>env_case.xml</file>
     <group>case_comp</group>
     <desc>List of component classes supported by this driver</desc>
@@ -52,12 +52,13 @@
     <desc>full pathname of case</desc>
   </entry>
 
-  <entry id="LOGDIR">
-    <type>char</type>
-    <default_value>$CASEROOT/logs</default_value>
-    <group>run_desc</group>
-    <file>env_run.xml</file>
-    <desc>Extra copies of the component log files will be saved here.</desc>
+  <entry id="NONLOCAL">
+    <type>logical</type>
+    <valid_values>TRUE,FALSE</valid_values>
+    <default_value>FALSE</default_value>
+    <group>case_def</group>
+    <file>env_case.xml</file>
+    <desc>user is not on the requested machine</desc>
   </entry>
 
   <entry id="CASETOOLS">
@@ -234,7 +235,7 @@
 
   <entry id="RUN_REFDIR">
     <type>char</type>
-    <default_value>ccsm4_init</default_value>
+    <default_value>cesm2_init</default_value>
     <group>run_begin_stop_restart</group>
     <file>env_run.xml</file>
     <desc>
@@ -407,6 +408,7 @@
       <value compclass="ICE">FALSE</value>
       <value compclass="ROF">FALSE</value>
       <value compclass="LND">FALSE</value>
+      <value compclass="IAC">FALSE</value>
     </values>
   </entry>
 
@@ -634,15 +636,6 @@
     Must be explicitly set in env_build.xml for userdefined machine.</desc>
   </entry>
 
-  <entry id="SUPPORTED_BY">
-    <type>char</type>
-    <valid_values></valid_values>
-    <default_value></default_value>
-    <group>build_def</group>
-    <file>env_build.xml</file>
-    <desc>email address of person (or group) that supports the build and port for this machine (do not edit)></desc>
-  </entry>
-
   <entry id="MPILIB">
     <type>char</type>
     <valid_values></valid_values>
@@ -666,7 +659,7 @@
 
   <entry id="COMP_INTERFACE">
     <type>char</type>
-    <valid_values>mct,nuopc</valid_values>
+    <valid_values>mct,nuopc,moab</valid_values>
     <default_value>mct</default_value>
     <group>build_def</group>
     <file>env_build.xml</file>
@@ -696,7 +689,7 @@
       runs (i.e., non-DEBUG), due to performance penalties associated with turning on these flags.</desc>
   </entry>
 
-  <entry id="BUILD_THREADED">
+  <entry id="FORCE_BUILD_SMP">
     <type>logical</type>
     <valid_values>TRUE,FALSE</valid_values>
     <default_value>FALSE</default_value>
@@ -738,9 +731,9 @@
     <desc>TRUE implies linking to the Albany library - set
     automatically by XXX_USE_ALBANY options (do not edit). Flag to
     turn on linking to the Albany library. Currently this is used by
-    MPASLI. Note that Albany is a C++ library, so setting this
+    MALI. Note that Albany is a C++ library, so setting this
     variable to TRUE will involve the inclusion of C++ code in the
-    MPASLI executable. This is currently only supported for certain
+    MALI executable. This is currently only supported for certain
     machines.</desc>
   </entry>
 
@@ -891,7 +884,7 @@
     <type>logical</type>
     <valid_values>TRUE,FALSE</valid_values>
     <default_value>FALSE</default_value>
-    <group>run_cesm</group>
+    <group>run_flags</group>
     <file>env_run.xml</file>
     <desc>Enables the papi hardware counters in gptl
     The papi library must be included in the build step for
@@ -900,9 +893,9 @@
 
   <entry id="ESMF_LOGFILE_KIND">
     <type>char</type>
-    <valid_values>ESMF_LOGKIND_SINGLE,ESMF_LOGKIND_MULTI,ESMF_LOGKIND_NONE</valid_values>
+    <valid_values>ESMF_LOGKIND_SINGLE,ESMF_LOGKIND_MULTI,ESMF_LOGKIND_MULTI_ON_ERROR,ESMF_LOGKIND_NONE</valid_values>
     <default_value>ESMF_LOGKIND_NONE</default_value>
-    <group>run_cesm</group>
+    <group>run_flags</group>
     <file>env_run.xml</file>
     <desc>
       Determines what ESMF log files (if any) are generated when
@@ -1117,6 +1110,30 @@
     <desc>number of wav cells in j direction - DO NOT EDIT (for experts only)</desc>
   </entry>
 
+  <entry id="IAC_GRID">
+    <type>char</type>
+    <default_value>UNSET</default_value>
+    <group>build_grid</group>
+    <file>env_build.xml</file>
+    <desc>iac model (iac) grid</desc>
+  </entry>
+
+  <entry id="IAC_NX">
+    <type>integer</type>
+    <default_value>0</default_value>
+    <group>build_grid</group>
+    <file>env_build.xml</file>
+    <desc>number of iac cells in i direction - DO NOT EDIT (for experts only)</desc>
+  </entry>
+
+  <entry id="IAC_NY">
+    <type>integer</type>
+    <default_value>0</default_value>
+    <group>build_grid</group>
+    <file>env_build.xml</file>
+    <desc>number of iac cells in j direction - DO NOT EDIT (for experts only)</desc>
+  </entry>
+
   <entry id="MASK_GRID">
     <type>char</type>
     <default_value>UNSET</default_value>
@@ -1216,6 +1233,22 @@
     <group>run_domain</group>
     <file>env_run.xml</file>
     <desc>path of wav domain file</desc>
+  </entry>
+
+  <entry id="IAC_DOMAIN_FILE">
+    <type>char</type>
+    <default_value>UNSET</default_value>
+    <group>run_domain</group>
+    <file>env_run.xml</file>
+    <desc>iac domain file</desc>
+  </entry>
+
+  <entry id="IAC_DOMAIN_PATH">
+    <type>char</type>
+    <default_value>$DIN_LOC_ROOT/share/domains</default_value>
+    <group>run_domain</group>
+    <file>env_run.xml</file>
+    <desc>path of iac domain file</desc>
   </entry>
 
   <entry id="ICE_DOMAIN_FILE">
@@ -1509,10 +1542,11 @@
 
   <entry id="ROF2OCN_FMAPNAME">
     <type>char</type>
-    <default_value>idmap</default_value>
+    <default_value>idmap_ignore</default_value>
     <group>run_domain</group>
     <file>env_run.xml</file>
-    <desc>rof2ocn flux mapping file</desc>
+    <desc>rof2ocn flux mapping file - the default value idmap_ignore, if set, will be ignored by buildnml and
+    will generate a runtime error if in fact a file is required for the given compset</desc>
   </entry>
 
   <entry id="ROF2OCN_FMAPTYPE">
@@ -1592,12 +1626,49 @@
     <desc>glc2lnd state mapping file decomp type</desc>
   </entry>
 
-  <entry id="GLC2ICE_RMAPNAME">
+  <entry id="GLC2ICE_FMAPNAME">
     <type>char</type>
-    <default_value>idmap</default_value>
+    <default_value>idmap_ignore</default_value>
     <group>run_domain</group>
     <file>env_run.xml</file>
-    <desc>glc2ice runoff mapping file</desc>
+    <desc>glc2ice flux mapping file - the default value idmap_ignore, if set, will be ignored by buildnml and
+    will generate a runtime error if in fact a file is required for the given compset</desc>
+  </entry>
+
+  <entry id="GLC2ICE_FMAPTYPE">
+    <type>char</type>
+    <valid_values>X,Y</valid_values>
+    <default_value>X</default_value>
+    <group>run_domain</group>
+    <file>env_run.xml</file>
+    <desc>glc2ice flux mapping file decomp type</desc>
+  </entry>
+
+  <entry id="GLC2ICE_SMAPNAME">
+    <type>char</type>
+    <default_value>idmap_ignore</default_value>
+    <group>run_domain</group>
+    <file>env_run.xml</file>
+    <desc>glc2ice state mapping file - the default value idmap_ignore, if set, will be ignored by buildnml and
+    will generate a runtime error if in fact a file is required for the given compset</desc>
+  </entry>
+
+  <entry id="GLC2ICE_SMAPTYPE">
+    <type>char</type>
+    <valid_values>X,Y</valid_values>
+    <default_value>X</default_value>
+    <group>run_domain</group>
+    <file>env_run.xml</file>
+    <desc>glc2ice state mapping file decomp type</desc>
+  </entry>
+
+  <entry id="GLC2ICE_RMAPNAME">
+    <type>char</type>
+    <default_value>idmap_ignore</default_value>
+    <group>run_domain</group>
+    <file>env_run.xml</file>
+    <desc>glc2ice runoff mapping file - the default value idmap_ignore, if set, will be ignored by buildnml and
+    will generate a runtime error if in fact a file is required for the given compset</desc>
   </entry>
 
   <entry id="GLC2ICE_RMAPTYPE">
@@ -1609,12 +1680,49 @@
     <desc>glc2ice runoff mapping file decomp type</desc>
   </entry>
 
-  <entry id="GLC2OCN_LIQ_RMAPNAME">
+  <entry id="GLC2OCN_FMAPNAME">
     <type>char</type>
-    <default_value>idmap</default_value>
+    <default_value>idmap_ignore</default_value>
     <group>run_domain</group>
     <file>env_run.xml</file>
-    <desc>glc2ocn runoff mapping file for liquid runoff</desc>
+    <desc>glc2ocn flux mapping file - the default value idmap_ignore, if set, will be ignored by buildnml and
+    will generate a runtime error if in fact a file is required for the given compset</desc>
+  </entry>
+
+  <entry id="GLC2OCN_FMAPTYPE">
+    <type>char</type>
+    <valid_values>X,Y</valid_values>
+    <default_value>Y</default_value>
+    <group>run_domain</group>
+    <file>env_run.xml</file>
+    <desc>glc2ocn flux mapping file decomp type</desc>
+  </entry>
+
+  <entry id="GLC2OCN_SMAPNAME">
+    <type>char</type>
+    <default_value>idmap_ignore</default_value>
+    <group>run_domain</group>
+    <file>env_run.xml</file>
+    <desc>glc2ocn state mapping file - the default value idmap_ignore, if set, will be ignored by buildnml and
+    will generate a runtime error if in fact a file is required for the given compset</desc>
+  </entry>
+
+  <entry id="GLC2OCN_SMAPTYPE">
+    <type>char</type>
+    <valid_values>X,Y</valid_values>
+    <default_value>Y</default_value>
+    <group>run_domain</group>
+    <file>env_run.xml</file>
+    <desc>glc2ocn state mapping file decomp type</desc>
+  </entry>
+
+  <entry id="GLC2OCN_LIQ_RMAPNAME">
+    <type>char</type>
+    <default_value>idmap_ignore</default_value>
+    <group>run_domain</group>
+    <file>env_run.xml</file>
+    <desc>glc2ocn runoff mapping file for liquid runoff - the default value idmap_ignore, if set, will be ignored by buildnml and
+    will generate a runtime error if in fact a file is required for the given compset</desc>
   </entry>
 
   <entry id="GLC2OCN_LIQ_RMAPTYPE">
@@ -1628,10 +1736,11 @@
 
   <entry id="GLC2OCN_ICE_RMAPNAME">
     <type>char</type>
-    <default_value>idmap</default_value>
+    <default_value>idmap_ignore</default_value>
     <group>run_domain</group>
     <file>env_run.xml</file>
-    <desc>glc2ocn runoff mapping file for ice runoff</desc>
+    <desc>glc2ocn runoff mapping file for ice runoff - the default value idmap_ignore, if set, will be ignored by buildnml and
+    will generate a runtime error if in fact a file is required for the given compset</desc>
   </entry>
 
   <entry id="GLC2OCN_ICE_RMAPTYPE">
@@ -1641,6 +1750,42 @@
     <group>run_domain</group>
     <file>env_run.xml</file>
     <desc>glc2ocn runoff mapping file decomp type for ice runoff</desc>
+  </entry>
+
+  <entry id="OCN2GLC_FMAPNAME">
+    <type>char</type>
+    <default_value>idmap_ignore</default_value>
+    <group>run_domain</group>
+    <file>env_run.xml</file>
+    <desc>ocn2glc flux mapping file - the default value idmap_ignore, if set, will be ignored by buildnml and
+    will generate a runtime error if in fact a file is required for the given compset</desc>
+  </entry>
+
+  <entry id="OCN2GLC_FMAPTYPE">
+    <type>char</type>
+    <valid_values>X,Y</valid_values>
+    <default_value>Y</default_value>
+    <group>run_domain</group>
+    <file>env_run.xml</file>
+    <desc>ocn2glc flux mapping file decomp type</desc>
+  </entry>
+
+  <entry id="OCN2GLC_SMAPNAME">
+    <type>char</type>
+    <default_value>idmap_ignore</default_value>
+    <group>run_domain</group>
+    <file>env_run.xml</file>
+    <desc>ocn2glc state mapping file - the default value idmap_ignore, if set, will be ignored by buildnml and
+    will generate a runtime error if in fact a file is required for the given compset</desc>
+  </entry>
+
+  <entry id="OCN2GLC_SMAPTYPE">
+    <type>char</type>
+    <valid_values>X,Y</valid_values>
+    <default_value>Y</default_value>
+    <group>run_domain</group>
+    <file>env_run.xml</file>
+    <desc>ocn2glc state mapping file decomp type</desc>
   </entry>
 
   <entry id="OCN2WAV_SMAPNAME">
@@ -1692,6 +1837,74 @@
     <group>run_domain</group>
     <file>env_run.xml</file>
     <desc>wav2ocn state mapping file decomp type</desc>
+  </entry>
+
+  <entry id="IAC2ATM_FMAPNAME">
+    <type>char</type>
+    <default_value>idmap</default_value>
+    <group>run_domain</group>
+    <file>env_run.xml</file>
+    <desc>iac2atm flux mapping file</desc>
+  </entry>
+
+  <entry id="IAC2ATM_FMAPTYPE">
+    <type>char</type>
+    <valid_values>X,Y</valid_values>
+    <default_value>X</default_value>
+    <group>run_domain</group>
+    <file>env_run.xml</file>
+    <desc>iac2atm flux mapping file decomp type</desc>
+  </entry>
+
+  <entry id="IAC2ATM_SMAPNAME">
+    <type>char</type>
+    <default_value>idmap</default_value>
+    <group>run_domain</group>
+    <file>env_run.xml</file>
+    <desc>iac2atm state mapping file</desc>
+  </entry>
+
+  <entry id="IAC2ATM_SMAPTYPE">
+    <type>char</type>
+    <valid_values>X,Y</valid_values>
+    <default_value>X</default_value>
+    <group>run_domain</group>
+    <file>env_run.xml</file>
+    <desc>iac2atm state mapping file decomp type</desc>
+  </entry>
+
+  <entry id="IAC2LND_FMAPNAME">
+    <type>char</type>
+    <default_value>idmap</default_value>
+    <group>run_domain</group>
+    <file>env_run.xml</file>
+    <desc>iac2lnd flux mapping file</desc>
+  </entry>
+
+  <entry id="IAC2LND_FMAPTYPE">
+    <type>char</type>
+    <valid_values>X,Y</valid_values>
+    <default_value>X</default_value>
+    <group>run_domain</group>
+    <file>env_run.xml</file>
+    <desc>iac2lnd flux mapping file decomp type</desc>
+  </entry>
+
+  <entry id="IAC2LND_SMAPNAME">
+    <type>char</type>
+    <default_value>idmap</default_value>
+    <group>run_domain</group>
+    <file>env_run.xml</file>
+    <desc>iac2lnd state mapping file</desc>
+  </entry>
+
+  <entry id="IAC2LND_SMAPTYPE">
+    <type>char</type>
+    <valid_values>X,Y</valid_values>
+    <default_value>X</default_value>
+    <group>run_domain</group>
+    <file>env_run.xml</file>
+    <desc>iac2lnd state mapping file decomp type</desc>
   </entry>
 
   <entry id="VECT_MAP">
@@ -1806,8 +2019,29 @@
     <group>run_din</group>
     <file>env_run.xml</file>
     <desc>
-      A regular expression to search for an indication that a run failure was caused by a node failure
-      and should therefore be re-attempted.
+      A regular expression to search for an indication that a run failure
+       was caused by a node failure and should therefore be re-attempted.
+    </desc>
+  </entry>
+
+  <entry id="MPIRUN_RETRY_REGEX">
+    <type>char</type>
+    <group>run_din</group>
+    <file>env_run.xml</file>
+    <desc>
+      A regular expression to search for an indication that a run failure
+      was caused by a known event such as a timeout and should therefore
+      be re-attempted.
+    </desc>
+  </entry>
+
+  <entry id="MPIRUN_RETRY_COUNT">
+    <type>integer</type>
+    <default_value>0</default_value>
+    <group>run_din</group>
+    <file>env_run.xml</file>
+    <desc>The number of times to reattempt the mpirun command if
+    MPIRUN_RETRY_REGEX is matched but ALLOCATE_SPARE_NODES is False
     </desc>
   </entry>
 
@@ -1907,6 +2141,7 @@
       <value compclass="ROF"> $MAX_MPITASKS_PER_NODE</value>
       <value compclass="LND"> $MAX_MPITASKS_PER_NODE</value>
       <value compclass="ESP"> $MAX_MPITASKS_PER_NODE</value>
+      <value compclass="IAC"> $MAX_MPITASKS_PER_NODE</value>
     </values>
     <group>mach_pes</group>
     <file>env_mach_pes.xml</file>
@@ -1924,6 +2159,7 @@
       <value compclass="ROF"> 0</value>
       <value compclass="LND"> 0</value>
       <value compclass="ESP"> 0</value>
+      <value compclass="IAC"> 0</value>
     </values>
     <group>mach_pes</group>
     <file>env_mach_pes.xml</file>
@@ -1942,6 +2178,7 @@
       <value compclass="ROF">1</value>
       <value compclass="LND">1</value>
       <value compclass="ESP">1</value>
+      <value compclass="IAC">1</value>
     </values>
     <group>mach_pes</group>
     <file>env_mach_pes.xml</file>
@@ -1960,6 +2197,7 @@
       <value compclass="ROF">0</value>
       <value compclass="LND">0</value>
       <value compclass="ESP">0</value>
+      <value compclass="IAC">0</value>
     </values>
     <group>mach_pes</group>
     <file>env_mach_pes.xml</file>
@@ -1989,6 +2227,7 @@
       <value compclass="ROF">1</value>
       <value compclass="LND">1</value>
       <value compclass="ESP">1</value>
+      <value compclass="IAC">1</value>
     </values>
     <group>mach_pes</group>
     <file>env_mach_pes.xml</file>
@@ -2009,6 +2248,7 @@
       <value compclass="ROF">concurrent</value>
       <value compclass="LND">concurrent</value>
       <value compclass="ESP">concurrent</value>
+      <value compclass="IAC">concurrent</value>
     </values>
     <group>mach_pes</group>
     <file>env_mach_pes.xml</file>
@@ -2027,6 +2267,7 @@
       <value compclass="ROF">1</value>
       <value compclass="LND">1</value>
       <value compclass="ESP">1</value>
+      <value compclass="IAC">1</value>
     </values>
     <group>mach_pes</group>
     <file>env_mach_pes.xml</file>
@@ -2039,7 +2280,7 @@
     <default_value>0</default_value>
     <group>mach_pes_last</group>
     <file>env_mach_pes.xml</file>
-    <desc>total number of MPI tasks (setup automatically - DO NOT EDIT)</desc>
+    <desc>total number of physical cores used (setup automatically - DO NOT EDIT)</desc>
   </entry>
 
   <entry id="MAX_TASKS_PER_NODE">
@@ -2211,6 +2452,7 @@
       <value compclass="ROF">default</value>
       <value compclass="LND">default</value>
       <value compclass="ESP">default</value>
+      <value compclass="IAC">default</value>
     </values>
   </entry>
 
@@ -2232,6 +2474,7 @@
       <value compclass="ROF">64bit_offset</value>
       <value compclass="LND">64bit_offset</value>
       <value compclass="ESP">64bit_offset</value>
+      <value compclass="IAC">64bit_offset</value>
     </values>
   </entry>
 
@@ -2253,6 +2496,7 @@
       <value compclass="ROF"></value>
       <value compclass="LND"></value>
       <value compclass="ESP"></value>
+      <value compclass="IAC"></value>
     </values>
   </entry>
 
@@ -2273,6 +2517,7 @@
       <value compclass="ROF"></value>
       <value compclass="LND"></value>
       <value compclass="ESP"></value>
+      <value compclass="IAC"></value>
     </values>
   </entry>
 
@@ -2291,6 +2536,7 @@
       <value component="ROF">1</value>
       <value component="LND">1</value>
       <value component="ESP">1</value>
+      <value component="IAC">1</value>
     </values>
   </entry>
 
@@ -2312,6 +2558,7 @@
       <value compclass="ROF">-99</value>
       <value compclass="LND">-99</value>
       <value compclass="ESP">-99</value>
+      <value compclass="IAC">-99</value>
     </values>
   </entry>
 
@@ -2579,6 +2826,7 @@
       <value compclass="ICE">FALSE</value>
       <value compclass="ROF">FALSE</value>
       <value compclass="LND">FALSE</value>
+      <value compclass="IAC">FALSE</value>
     </values>
   </entry>
 
@@ -2673,6 +2921,16 @@
    <file>env_batch.xml</file>
    <desc>whether the PROJECT value is required on this machine</desc>
  </entry>
+
+ <entry id="COMPARE_TO_NUOPC">
+   <type>logical</type>
+   <valid_values>TRUE,FALSE</valid_values>
+   <default_value>FALSE</default_value>
+   <group>comparison_to_nuopc</group>
+   <file>env_build.xml</file>
+   <desc>TRUE=>turn on CPP variable COMPARE_TO_NUOPC</desc>
+ </entry>
+
 
  <help>
     =========================================

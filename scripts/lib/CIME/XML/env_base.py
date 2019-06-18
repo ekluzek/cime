@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 class EnvBase(EntryID):
 
-    def __init__(self, case_root, infile, schema=None):
+    def __init__(self, case_root, infile, schema=None, read_only=False):
         if case_root is None:
             case_root = os.getcwd()
 
@@ -18,7 +18,7 @@ class EnvBase(EntryID):
         else:
             fullpath = os.path.join(case_root, infile)
 
-        EntryID.__init__(self, fullpath, schema=schema, read_only=False)
+        EntryID.__init__(self, fullpath, schema=schema, read_only=read_only)
 
         self._id_map = None
         self._group_map = None
@@ -106,7 +106,7 @@ class EnvBase(EntryID):
                     comp = attribute["compclass"]
                 return vid, comp, True
         else:
-            if hasattr(self, "_components"):
+            if hasattr(self, "_components") and self._components:
                 new_vid = None
                 for comp in self._components:
                     if vid.endswith('_'+comp):

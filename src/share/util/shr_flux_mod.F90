@@ -134,7 +134,7 @@ end subroutine shr_flux_adjust_constants
 !
 ! !INTERFACE: ------------------------------------------------------------------
 
-SUBROUTINE shr_flux_atmOcn(nMax  ,zbot  ,ubot  ,vbot  ,thbot ,  prec_gust, gust_fac, &
+SUBROUTINE shr_flux_atmOcn(nMax  ,zbot  ,ubot  ,vbot  ,thbot ,   & 
            &               qbot  ,s16O  ,sHDO  ,s18O  ,rbot  ,   &
            &               tbot  ,us    ,vs    ,   &
            &               ts    ,mask  ,sen   ,lat   ,lwup  ,   &
@@ -171,8 +171,6 @@ SUBROUTINE shr_flux_atmOcn(nMax  ,zbot  ,ubot  ,vbot  ,thbot ,  prec_gust, gust_
    real(R8)   ,intent(in) :: us   (nMax) ! ocn u-velocity        (m/s)
    real(R8)   ,intent(in) :: vs   (nMax) ! ocn v-velocity        (m/s)
    real(R8)   ,intent(in) :: ts   (nMax) ! ocn temperature       (K)
-   real(R8)   ,intent(in) :: prec_gust (nMax) ! atm precip for convective gustiness (kg/m^3)
-   real(R8)   ,intent(in) :: gust_fac    ! wind gustiness factor
 
    !--- output arguments -------------------------------
    real(R8),intent(out)  ::  sen  (nMax) ! heat flux: sensible    (W/m^2)
@@ -205,7 +203,6 @@ SUBROUTINE shr_flux_atmOcn(nMax  ,zbot  ,ubot  ,vbot  ,thbot ,  prec_gust, gust_
    integer(IN) :: n      ! vector loop index
    integer(IN) :: iter
    real(R8)    :: vmag   ! surface wind magnitude   (m/s)
-   real(R8)    :: vmag_old   ! surface wind magnitude without gustiness (m/s)
    real(R8)    :: ssq    ! sea surface humidity     (kg/kg)
    real(R8)    :: delt   ! potential T difference   (K)
    real(R8)    :: delq   ! humidity difference      (kg/kg)
@@ -239,11 +236,9 @@ SUBROUTINE shr_flux_atmOcn(nMax  ,zbot  ,ubot  ,vbot  ,thbot ,  prec_gust, gust_
    real(R8)    :: cdn    ! function: neutral drag coeff at 10m
    real(R8)    :: psimhu ! function: unstable part of psimh
    real(R8)    :: psixhu ! function: unstable part of psimx
-   real(R8)    :: ugust  ! function: gustiness as a function of convective rainfall
    real(R8)    :: Umps   ! dummy arg ~ wind velocity (m/s)
    real(R8)    :: Tk     ! dummy arg ~ temperature (K)
    real(R8)    :: xd     ! dummy arg ~ ?
-   real(R8)    :: gprec  ! dummy arg ~ ?
    !--- for cold air outbreak calc --------------------------------
    real(R8)    :: tdiff(nMax)               ! tbot - ts
    real(R8)    :: vscl
@@ -253,12 +248,6 @@ SUBROUTINE shr_flux_atmOcn(nMax  ,zbot  ,ubot  ,vbot  ,thbot ,  prec_gust, gust_
    cdn(Umps)  =   0.0027_R8 / Umps + 0.000142_R8 + 0.0000764_R8 * Umps
    psimhu(xd) = log((1.0_R8+xd*(2.0_R8+xd))*(1.0_R8+xd*xd)/8.0_R8) - 2.0_R8*atan(xd) + 1.571_R8
    psixhu(xd) = 2.0_R8 * log((1.0_R8 + xd*xd)/2.0_R8)
-
-   ! Convective gustiness appropriate for input precipitation.
-   ! Following Redelsperger et al. (2000, J. Clim)
-   ! Ug = log(1.0+6.69R-0.476R^2)
-   ! Coefficients X by 8640 for mm/s (from cam) -> cm/day (for above forumla)
-   ugust(gprec) = gust_fac*log(1._R8+57801.6_R8*gprec-3.55332096e7_R8*(gprec**2.0_R8))
 
    !--- formats ----------------------------------------
    character(*),parameter :: subName = '(shr_flux_atmOcn) '
@@ -298,28 +287,12 @@ SUBROUTINE shr_flux_atmOcn(nMax  ,zbot  ,ubot  ,vbot  ,thbot ,  prec_gust, gust_
    tdiff= tbot - ts
 
    al2 = log(zref/ztref)
-
    DO n=1,nMax
      if (mask(n) /= 0) then
 
         !--- compute some needed quantities ---
-
-        ! old version
-        !vmag   = max(umin, sqrt( (ubot(n)-us(n))**2 + (vbot(n)-vs(n))**2) )
-
-        !--- vmag+ugust (convective gustiness) Limit to a max precip 6 cm/day = 0.00069444 m/s.
-        !--- reverts to original formula if gust_fac=0
-
-        !PMA saves vmag_old for taux tauy computation
-
-        vmag_old    = max(umin, sqrt( (ubot(n)-us(n))**2 + (vbot(n)-vs(n))**2) )
-
-        if (gust_fac .gt. 1.e-12_R8) then
-         vmag       = max(umin, sqrt( (ubot(n)-us(n))**2 + (vbot(n)-vs(n))**2) + ugust(min(prec_gust(n),6.94444e-4_R8)))
-        else
-         vmag       = vmag_old
-        endif
-         if (use_coldair_outbreak_mod) then
+        vmag   = max(umin, sqrt( (ubot(n)-us(n))**2 + (vbot(n)-vs(n))**2) )
+        if (use_coldair_outbreak_mod) then
             ! Cold Air Outbreak Modification:
             ! Increase windspeed for negative tbot-ts
             ! based on Mahrt & Sun 1995,MWR
@@ -327,10 +300,8 @@ SUBROUTINE shr_flux_atmOcn(nMax  ,zbot  ,ubot  ,vbot  ,thbot ,  prec_gust, gust_
             if (tdiff(n).lt.td0) then
                vscl=min((1._R8+alpha*(abs(tdiff(n)-td0)**0.5_R8/abs(vmag))),maxscl)
                vmag=vmag*vscl
-               vmag_old=vmag_old*vscl
             endif
-         endif
-
+        endif
         ssq    = 0.98_R8 * qsat(ts(n)) / rbot(n)   ! sea surf hum (kg/kg)
         delt   = thbot(n) - ts(n)                  ! pot temp diff (K)
         delq   = qbot(n) - ssq                     ! spec hum dif (kg/kg)
@@ -385,6 +356,7 @@ SUBROUTINE shr_flux_atmOcn(nMax  ,zbot  ,ubot  ,vbot  ,thbot ,  prec_gust, gust_
            qstar = re * delq
         enddo
         if (iter < 1) then
+           write(s_logunit,*) ustar,ustar_prev,flux_con_tol,flux_con_max_iter
            call shr_sys_abort('No iterations performed ' // errMsg(sourcefile, __LINE__))
         end if
         !------------------------------------------------------------
@@ -394,8 +366,8 @@ SUBROUTINE shr_flux_atmOcn(nMax  ,zbot  ,ubot  ,vbot  ,thbot ,  prec_gust, gust_
         tau = rbot(n) * ustar * ustar
 
         !--- momentum flux ---
-        taux(n) = tau * (ubot(n)-us(n)) / vmag_old !PMA uses vmag_old for taux
-        tauy(n) = tau * (vbot(n)-vs(n)) / vmag_old !    tauy c20170620
+        taux(n) = tau * (ubot(n)-us(n)) / vmag
+        tauy(n) = tau * (vbot(n)-vs(n)) / vmag
 
         !--- heat flux ---
         sen (n) =          cp * tau * tstar / ustar
@@ -460,6 +432,12 @@ SUBROUTINE shr_flux_atmOcn(nMax  ,zbot  ,ubot  ,vbot  ,thbot ,  prec_gust, gust_
    ENDDO
 
 END subroutine shr_flux_atmOcn
+
+real(R8) elemental function cuberoot(a)
+  real(R8), intent(in) :: a
+  real(R8), parameter :: one_third = 1._R8/3._R8
+  cuberoot = sign(abs(a)**one_third, a)
+end function cuberoot
 
 !===============================================================================
 ! !BOP =========================================================================
@@ -695,7 +673,6 @@ SUBROUTINE shr_flux_atmOcn_diurnal &
    real(R8)    :: tdiff(nMax)               ! tbot - ts
    real(R8)    :: vscl
 
-
    qsat(Tk)   = 640380.0_R8 / exp(5107.4_R8/Tk)
    cdn(Umps)  =   0.0027_R8 / Umps + 0.000142_R8 + 0.0000764_R8 * Umps
    psimhu(xd) = log((1.0_R8+xd*(2.0_R8+xd))*(1.0_R8+xd*xd)/8.0_R8) - 2.0_R8*atan(xd) + 1.571_R8
@@ -878,7 +855,7 @@ SUBROUTINE shr_flux_atmOcn_diurnal &
             Kvisc = 0.0_R8
             dif3 = 0.0_R8
 
-            ustarw  = ustar*sqrt(rbot(n)/rhocn)
+            ustarw  = ustar*sqrt(max(tiny,rbot(n)/rhocn))
             Qnsol   = lwdn(n) - shr_const_stebol*(tSkin(n))**4 + &
                  rbot(n)*ustar*(cp*tstar + shr_const_latvap*qstar)
             Hd      = (Qnsol   + Qsol*(1.0_R8-swpen(n)) ) / rcpocn
@@ -890,8 +867,10 @@ SUBROUTINE shr_flux_atmOcn_diurnal &
                  (0.137_R8 + 11.0_R8*Dcool - 6.6e-5/Dcool *(1.0_R8 - exp((-1.0_R8*Dcool)/8.0e-4)))
             Hb = (Qdel/rcpocn)+(Fd*betaS/alphaT)
             Hb = min(Hb , 0.0_R8)
-            lambdaV = lambdaC*(1.0_R8 + ( (0.0_R8-Hb)*16.0_R8*molvisc(tBulk(n))* &
-                 shr_const_g*alphaT*molPr(tBulk(n))**2/ustarw**4)**0.75_R8)**(-1/3)
+
+!            lambdaV = lambdaC*(1.0_R8 + ( (0.0_R8-Hb)*16.0_R8*molvisc(tBulk(n))* &
+!                 shr_const_g*alphaT*molPr(tBulk(n))**2/ustarw**4)**0.75)**(-1._R8/3._R8)
+            lambdaV = 6.5_R8
             cSkin(n) =  MIN(0.0_R8, lambdaV * molPr(tBulk(n)) * Qdel / ustarw / rcpocn )
 
             !--- REGIME ---
@@ -928,7 +907,7 @@ SUBROUTINE shr_flux_atmOcn_diurnal &
                      Kvisc = Prandtl* kappa0 + NUzero * FofRi
                   else
                      regime(n) = 4.0_R8
-                     Kdiff = shr_const_karman*ustarw*shr_const_zsrflyr *(1.0_R8-7.0_R8*doL)**(1/3)
+                     Kdiff = shr_const_karman*ustarw*shr_const_zsrflyr *cuberoot(1.0_R8-7.0_R8*doL)
                      Kvisc = Kdiff
                   endif
                endif
