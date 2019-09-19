@@ -12,6 +12,7 @@ from CIME.SystemTests.system_tests_common import SystemTestsCommon
 from CIME.case.case_setup import case_setup
 from CIME.build import post_build
 from CIME.hist_utils import rename_all_hist_files
+from CIME.test_status import *
 #import CIME.utils
 #from CIME.check_lockedfiles import *
 
@@ -88,7 +89,7 @@ class TSC(SystemTestsCommon):
         # generate paths/file names for initial conditons
         csmdata_root = self._case.get_value("DIN_LOC_ROOT")
         csmdata_atm  = csmdata_root+"/atm/cam/inic/homme/ne4_v1_init/"
-        csmdata_lnd  = csmdata_root+"/lnd/clm2/initdata/ne4_v1_init/"
+        csmdata_lnd  = csmdata_root+"/lnd/clm2/initdata/ne4_v1_init/b58d55680/"
         file_pref_atm = "SMS_Ly5.ne4_ne4.FC5AV1C-04P2.eos_intel.ne45y.cam.i.0002-"
         file_pref_lnd = "SMS_Ly5.ne4_ne4.FC5AV1C-04P2.eos_intel.ne45y.clm2.r.0002-"
 
@@ -154,3 +155,7 @@ class TSC(SystemTestsCommon):
         # for testing new code or new computing environment.
         if self._case.get_value("GENERATE_BASELINE"):
             self._run_with_specified_dtime(dtime=1)
+    def _compare_baseline(self):
+        #currently faking it as PENDING
+        with self._test_status as ts:
+            ts.set_status(BASELINE_PHASE, TEST_PEND_STATUS)

@@ -160,12 +160,10 @@ def cmake_stage(name, test_spec_dir, build_optimized, use_mpiserial, mpirun_comm
                               that need it
     build_optimized (logical) - If True, we'll build in optimized rather than debug mode
     """
-    # Clear CMake cache.
     if clean:
-        pwd_contents = os.listdir(os.getcwd())
-        if "CMakeCache.txt" in pwd_contents:
+        if os.path.isfile("CMakeCache.txt"):
             os.remove("CMakeCache.txt")
-        if "CMakeFiles" in pwd_contents:
+        if os.path.isdir("CMakeFiles"):
             rmtree("CMakeFiles")
 
     if not os.path.isfile("CMakeCache.txt"):
@@ -239,7 +237,7 @@ def find_pfunit(compilerobj, mpilib, use_openmp):
     - use_openmp: Boolean
     """
     attrs = {"MPILIB": mpilib,
-             "compile_threaded": "true" if use_openmp else "false"
+             "compile_threaded": "TRUE" if use_openmp else "FALSE"
              }
 
     pfunit_path = compilerobj.get_optional_compiler_node("PFUNIT_PATH", attributes=attrs)
@@ -296,6 +294,13 @@ def _main():
 
     # Switch to the build directory.
     os.chdir(build_dir)
+    if clean:
+        pwd_contents = os.listdir(os.getcwd())
+        # Clear CMake cache.
+        for file_ in pwd_contents:
+            if file_ in ("Macros.cmake", "env_mach_specific.xml") \
+                    or file_.startswith('Depends') or file_.startswith(".env_mach_specific"):
+                os.remove(file_)
 
     #=================================================
     # Functions to perform various stages of build.
@@ -332,9 +337,9 @@ def _main():
     os.environ["DEBUG"] = stringify_bool(debug)
     os.environ["MPILIB"] = mpilib
     if use_openmp:
-        os.environ["compile_threaded"] = "true"
+        os.environ["compile_threaded"] = "TRUE"
     else:
-        os.environ["compile_threaded"] = "false"
+        os.environ["compile_threaded"] = "FALSE"
 
     os.environ["UNIT_TEST_HOST"] = socket.gethostname()
     if "NETCDF_PATH" in os.environ and not "NETCDF" in os.environ:
@@ -355,7 +360,7 @@ def _main():
         }
 
         # We can get away with specifying case=None since we're using exe_only=True
-        mpirun_command, _ = machspecific.get_mpirun(None, mpi_attribs, None, exe_only=True)
+        mpirun_command, _, _, _ = machspecific.get_mpirun(None, mpi_attribs, None, exe_only=True)
         mpirun_command = machspecific.get_resolved_value(mpirun_command)
         logger.info("mpirun command is '{}'".format(mpirun_command))
 
