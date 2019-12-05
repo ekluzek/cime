@@ -46,6 +46,7 @@
     <desc>List of streams used for the given docn_mode.</desc>
     <values>
       <value docn_mode="prescribed">prescribed</value>
+      <value docn_mode="cplhist"   >cplhist</value>
       <value docn_mode="sst_aquap1">''</value>
       <value docn_mode="sst_aquap2">''</value>
       <value docn_mode="sst_aquap3">''</value>
@@ -70,6 +71,7 @@
     <desc>does not appear in namelist - only used to set domain and data information</desc>
     <values>
       <value stream="prescribed">$SSTICE_GRID_FILENAME</value>
+      <value stream="cplhist"   >$DOCN_CPLHIST_DOMAIN_FILE</value>
     </values>
   </entry>
 
@@ -80,6 +82,7 @@
     <desc>does not appear in namelist - only used to set domain and data information</desc>
     <values>
       <value stream="prescribed">$SSTICE_DATA_FILENAME</value>
+      <value stream="cplhist"   >$DOCN_CPLHIST_CASE.cpl.ha.%ymd.nc</value>
     </values>
   </entry>
 
@@ -93,6 +96,7 @@
       <value stream="aquapfile">$DIN_LOC_ROOT/ocn/docn7/AQUAPLANET/</value>
       <value stream="som">$DIN_LOC_ROOT/ocn/docn7/SOM</value>
       <value stream="interannual">$DIN_LOC_ROOT/atm/cam/sst</value>
+      <value stream="cplhist"    >$OCN_DOMAIN_PATH</value>
     </values>
   </entry>
 
@@ -106,6 +110,7 @@
       <value stream="aquapfile">$DOCN_AQP_FILENAME</value>
       <value stream="som">$DOCN_SOM_FILENAME</value>
       <value stream="interannual">sst_HadOIBl_bc_1x1_1850_2014_c150416.nc</value>
+      <value stream="cplhist"    >$OCN_DOMAIN_FILE</value>
     </values>
   </entry>
 
@@ -145,6 +150,7 @@
       <value stream="aquapfile">$DIN_LOC_ROOT/ocn/docn7/AQUAPLANET</value>
       <value stream="som">$DIN_LOC_ROOT/ocn/docn7/SOM</value>
       <value stream="interannual">$DIN_LOC_ROOT/atm/cam/sst</value>
+      <value stream="cplhist"    >$DOCN_CPLHIST_DIR</value>
     </values>
   </entry>
 
@@ -158,6 +164,7 @@
       <value stream="aquapfile">$DOCN_AQP_FILENAME</value>
       <value stream="som">$DOCN_SOM_FILENAME</value>
       <value stream="interannual">sst_HadOIBl_bc_1x1_1850_2014_c150416.nc</value>
+      <value stream="cplhist"    >$DOCN_CPLHIST_CASE.cpl.ha.%ymd.nc</value>
     </values>
   </entry>
 
@@ -189,6 +196,26 @@
       <value stream="aquapfile">
         SST_cpl t
       </value>
+      <value stream="cplhist" ocn_c2_glc="False">
+        o2xavg_So_t        t
+        o2xavg_So_s        s
+        o2xavg_So_u        u
+        o2xavg_So_v        v
+        o2xavg_So_dhdx     dhdx
+        o2xavg_So_dhdy     dhdy
+        o2xavg_So_bldepth  h
+        o2xavg_Fioo_q      qbot
+      </value>
+      <value stream="cplhist" ocn_c2_glc="True">
+        o2xavg_So_t        t
+        o2xavg_So_s        s
+        o2xavg_So_u        u
+        o2xavg_So_v        v
+        o2xavg_So_dhdx     dhdx
+        o2xavg_So_dhdy     dhdy
+        o2xavg_So_bldepth  h
+        o2xavg_Fioo_q      qbot
+      </value>
     </values>
   </entry>
 
@@ -213,6 +240,7 @@
       <value stream="aquapfile">0</value>
       <value stream="som">1</value>
       <value stream="interannual">1</value>
+      <value stream="cplhist"    >$DOCN_CPLHIST_YR_ALIGN</value>
     </values>
   </entry>
 
@@ -227,6 +255,7 @@
       <value stream="aquapfile">0</value>
       <value stream="som">1</value>
       <value stream="interannual">1850</value>
+      <value stream="cplhist"    >$DOCN_CPLHIST_YR_START</value>
     </values>
   </entry>
 
@@ -241,6 +270,7 @@
       <value stream="aquapfile">0</value>
       <value stream="som">1</value>
       <value stream="interannual">2014</value>
+      <value stream="cplhist"    >$DOCN_CPLHIST_YR_END</value>
     </values>
   </entry>
 
@@ -312,6 +342,7 @@
     <values>
       <value docn_mode="null">NULL</value>
       <value docn_mode="prescribed">SSTDATA</value>
+      <value docn_mode="cplhist"    >COPYALL</value>
       <value docn_mode="sst_aquap1$">SST_AQUAP1</value>
       <value docn_mode="sst_aquap2$">SST_AQUAP2</value>
       <value docn_mode="sst_aquap3$">SST_AQUAP3</value>

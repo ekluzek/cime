@@ -69,6 +69,11 @@
   </compset>
 
   <compset>
+    <alias>A1850_DLDO_CPLHIST</alias>
+    <lname>1850_SATM_DLND%SCPL_SICE_DOCN%CPLHIST_SROF_SGLC_SWAV</lname>
+  </compset>
+
+  <compset>
     <alias>ADWAV</alias>
     <lname>2000_SATM_SLND_SICE_SOCN_SROF_SGLC_DWAV%CLIMO</lname>
   </compset>
