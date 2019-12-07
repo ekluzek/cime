@@ -62,6 +62,11 @@ module docn_comp_mod
   integer(IN)   :: kh,kqbot
   integer(IN)   :: index_lat, index_lon
 
+  logical       :: send_depths = .false.            ! Logical flag if temperature/salinity at depths will be sent
+  integer(IN), parameter :: kdepths = 6             ! Number of ocean depths that can be sent
+  integer(IN), parameter :: kdep_totals = kdepths*2 ! Total number of depth fields to send
+  integer(IN)   :: kdep(kdep_totals)                ! field indices to temperature/salinity at depths
+
   type(mct_rearr)        :: rearr
   type(mct_avect)        :: avstrm       ! av of data from stream
   real(R8), pointer      :: somtp(:)
@@ -78,6 +83,7 @@ module docn_comp_mod
        (/ "So_t        ","So_u        ","So_v        ","So_dhdx     ",&
           "So_dhdy     ","So_s        ","strm_h      ","strm_qbot   "/)
   character(len=*), parameter :: flds_strm = 'strm_h:strm_qbot'
+  character(12)   :: avidepfld(1:kdep_totals), avodepfld(1:kdep_totals)
   !--------------------------------------------------------------------------
 
   save
@@ -228,6 +234,8 @@ CONTAINS
     kswp  = mct_aVect_indexRA(o2x,'So_fswpen')
     kq    = mct_aVect_indexRA(o2x,'Fioo_q')
 
+    call docn_depths( o2x, logunit, send_depths )
+
     call mct_aVect_init(x2o, rList=seq_flds_x2o_fields, lsize=lsize)
     call mct_aVect_zero(x2o)
 
@@ -328,6 +336,66 @@ CONTAINS
   end subroutine docn_comp_init
 
   !===============================================================================
+  subroutine docn_depths( o2x, logunit, send_depths )
+    ! !DESCRIPTION:  Check if ocean depths should be sent and if so, setup arrays for it
+    implicit none
+
+    ! !INPUT/OUTPUT PARAMETERS:
+    type(mct_aVect), intent(in)  :: o2x
+    integer(IN)    , intent(in)  :: logunit          ! logging unit number
+    logical        , intent(out) :: send_depths
+
+    !--- local ---
+    integer :: k 
+    character(2), parameter :: depths(kdepths) = (/ "10", "19", "26", "30", "33", "35" /)
+    character(*), parameter :: subName = "(docn_depths) "
+
+    !-------------------------------------------------------------------------------
+    !
+    ! Input file and coupler output field names for the depth fields
+    !
+    do k = 1, kdepths
+       avodepfld(k) = 'So_t_' // depths(k)
+       avidepfld(k) = 't_' // depths(k)
+    end do
+    do k = kdepths+1, kdep_totals
+       avodepfld(k) = 'So_s_' // depths(k-kdepths)
+       avidepfld(k) = 's_' // depths(k-kdepths)
+    end do
+    !
+    ! Figure out if depths are being sent if the first depth fields exists in the Ocean to coupler field list
+    !
+    k = 1
+    kdep(k) = mct_aVect_indexRA(o2x,avodepfld(k),perrWith='quiet')
+    if ( kdep(k) > 0 )then
+       send_depths = .true.
+    else
+       send_depths = .false.
+    end if
+
+    !
+    ! Error checking
+    !
+    if ( send_depths .and. (trim(datamode) /= "COPYALL") )then
+       write(logunit,*) ' ERROR: ocean depths can only be sent for datamode=COPYALL'
+       call shr_sys_abort(trim(subname)//' ERROR: trying to send ocean depths for the wrong data mode')
+    end if
+
+    !
+    ! If sending the depths get the rest of the indices, error check that they are all being done
+    !
+    if ( send_depths )then
+       do k = 2, kdep_totals
+          kdep(k) = mct_aVect_indexRA(o2x,avodepfld(k))
+          if ( kdep(k) == 0 )then
+             call shr_sys_abort(trim(subname)//' ERROR: trying to send ocean depth information and an index is missing')
+          end if
+       end do
+    end if
+
+  end subroutine docn_depths
+
+  !===============================================================================
   subroutine docn_comp_run(EClock, x2o, o2x, &
        SDOCN, gsmap, ggrid, mpicom, compid, my_task, master_task, &
        inst_suffix, logunit, read_restart, case_name)
@@ -426,7 +494,14 @@ CONTAINS
     select case (trim(datamode))
 
     case('COPYALL')
-       ! do nothing extra
+       ! This option may also send ocean depth information, and if so connect the streams for it
+       if ( send_depths )then
+          call t_startf('docn_scatter_dept_depth')
+          do n = 1, SDOCN%nstreams
+             call shr_dmodel_translateAV(SDOCN%avs(n), o2x, avidepfld, avodepfld, rearr)
+          enddo
+          call t_stopf('docn_scatter_depth')
+       end if
 
     case('SSTDATA')
        lsize = mct_avect_lsize(o2x)

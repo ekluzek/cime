@@ -215,6 +215,18 @@
         o2xavg_So_dhdy     dhdy
         o2xavg_So_bldepth  h
         o2xavg_Fioo_q      qbot
+        o2xavg_So_t_10     t_10
+        o2xavg_So_t_19     t_19
+        o2xavg_So_t_26     t_26
+        o2xavg_So_t_30     t_30
+        o2xavg_So_t_33     t_33
+        o2xavg_So_t_35     t_35
+        o2xavg_So_s_10     s_10
+        o2xavg_So_s_19     s_19
+        o2xavg_So_s_26     s_26
+        o2xavg_So_s_30     s_30
+        o2xavg_So_s_33     s_33
+        o2xavg_So_s_35     s_35
       </value>
     </values>
   </entry>
