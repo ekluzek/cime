@@ -260,7 +260,8 @@ contains
     logical :: rof_present   ! .true. => rof is present
     logical :: wav_present   ! .true. => wav is present
     logical :: dead_comps    ! .true. => dead models present
-    logical :: ocn_c2_glc    ! two-way ocn glc coupling
+    logical :: ocn_c2_glc    ! ocn to glc coupling
+    logical :: glc_c2_ocn    ! glc to ocn coupling
 
     integer :: n            ! indices
     integer :: ka, ki, kl, ko ! indices
@@ -292,6 +293,7 @@ contains
          glc_present=glc_present,       &
          wav_present=wav_present,       &
          dead_comps=dead_comps,         &
+         glc_c2_ocn=glc_c2_ocn,         &
          ocn_c2_glc=ocn_c2_glc)
 
     dom_a => component_get_dom_cx(atm)
@@ -421,6 +423,8 @@ contains
        if (glc_present .and. ocn_c2_glc) then
           mapper_o2g => prep_glc_get_mapper_Fo2g()
           call seq_map_map(mapper_o2g, fractions_o, fractions_g, fldlist='ofrac',norm=.false.)
+       endif
+       if (glc_present .and. glc_c2_ocn) then
           mapper_g2o => prep_ocn_get_mapper_Sg2o()
           call seq_map_map(mapper_g2o, fractions_g, fractions_o, fldlist='gfrac',norm=.false.)
        endif

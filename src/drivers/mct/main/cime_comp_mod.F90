@@ -1485,6 +1485,7 @@ contains
     if (wav_present) then
        if (ocn_prognostic) wav_c2_ocn = .true.
     endif
+    call seq_infodata_PutData(infodata, glc_c2_ocn=glc_c2_ocn )
 
     !----------------------------------------------------------
     ! Set domain check and other flag
