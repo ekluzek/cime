@@ -38,16 +38,15 @@ BUILD
 To compile this tool, you need to have the ESMFMKFILE environment variable set.
 The easiest way to do that is to load the ESMF modules. On cheyenne, caldera,
 geyser, or pronghorn you must already have the intel module loaded. Then load the
-version of ESMF you want to use (as of May 2018, the most recent version on the
-NCAR machines is 7.0.0):
+version of ESMF you want to use:
 
 Caldera, Geyser, Pronghorn:
 $ module load esmf
-$ module load esmf-7.0.0-ncdfio-uni-O
+$ module load esmf-7.1.0r-ncdfio-uni-O
 
 Cheyenne:
-$ module load esmf_libs/7.0.0
-$ module load esmf-7.0.0-ncdfio-uni-O
+$ module load esmf_libs/7.1.0r
+$ module load esmf-7.1.0r-ncdfio-uni-O
 
 This will set ESMFMKFILE. With this variable set, enter the src/ directory and
 run gmake

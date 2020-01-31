@@ -299,7 +299,7 @@ case $MACH in
   ## cheyenne
   "cheyenne" )
     module purge
-    module load intel/17.0.1 esmf_libs/7.0.0
+    module load intel/17.0.1 esmf_libs
     if [ "$serial" == "TRUE" ]; then
       # No MPIEXEC
       if [ -z "$MPIEXEC" ]; then

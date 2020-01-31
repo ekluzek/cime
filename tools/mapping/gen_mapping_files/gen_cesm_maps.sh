@@ -25,6 +25,7 @@ usage() {
   echo ' * ocn -> lnd: conservative'
   echo ' * lnd -> rtm: conservative'
   echo ' * rtm -> lnd: conservative'
+  echo ' * ocn -> glc: conservative, bilinear'
   echo ' * lnd -> glc: conservative, bilinear'
   echo ' * glc -> lnd: conservative, bilinear'
   echo ''
@@ -154,6 +155,7 @@ atm_ocn=0
 atm_lnd=0
 lnd_rtm=0
 ocn_lnd=0
+ocn_glc=0
 lnd_glc=0
 serial="FALSE"
 
@@ -327,6 +329,9 @@ if [ ! -z "$frtm" ]; then
 fi
 
 if [ ! -z "$fglc" ]; then
+  if [ ! -z "$focn" ]; then
+    ocn_glc=1
+  fi
   if [ ! -z "$flnd" ] || [ ! -z "$fatm" ]; then
     lnd_glc=1
   fi
@@ -348,7 +353,7 @@ if [ ! -z "$focn" ] && [ ! -z "$flnd" ]; then
 fi
 
 # See if any maps are being made
-if [ $((atm_ocn+atm_lnd+lnd_rtm+lnd_glc+ocn_lnd)) == 0 ]; then
+if [ $((atm_ocn+atm_lnd+lnd_rtm+lnd_glc+ocn_lnd+ocn_glc)) == 0 ]; then
   echo "ERROR: can not generate any maps based on given input!"
   echo "Invoke gen_cesm_maps.sh -h for usage"
   exit 9
@@ -481,6 +486,29 @@ if [ $lnd_glc == 1 ]; then
 
 fi
 
+if [ $ocn_glc == 1 ]; then
+  #--- glc to ocn conservative (area avg?) -------------------------------------
+  echo ""
+  echo "----------------------------------------------------------"
+  echo ""
+  make_map "$fglc" "$nglc" "$focn" "$nocn" "regional" "global" "aave"
+  file_list="$file_list map_${nglc}_TO_${nocn}_aave.$cdate.nc"
+
+  #--- ocn to glc conservative (area avg?) -------------------------------------
+  echo ""
+  echo "----------------------------------------------------------"
+  echo ""
+  make_map "$focn" "$nocn" "$fglc" "$nglc" "global" "regional" "aave"
+  file_list="$file_list map_${nocn}_TO_${nglc}_aave.$cdate.nc"
+
+  #--- ocn to glc bilinear (non-conservative) ----------------------------------
+  echo ""
+  echo "----------------------------------------------------------"
+  echo ""
+  make_map "$focn" "$nocn" "$fglc" "$nglc" "global" "regional" "blin"
+  file_list="$file_list map_${nocn}_TO_${nglc}_blin.$cdate.nc"
+
+fi
 # Run ESMF Regrid Weight Check tool
 if [ ! -z "$SkipGridCheck" ]; then
 	echo "Skipping the consistency check"
