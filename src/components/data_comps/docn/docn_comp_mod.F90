@@ -366,7 +366,7 @@ CONTAINS
     ! Figure out if depths are being sent if the first depth fields exists in the Ocean to coupler field list
     !
     k = 1
-    kdep(k) = mct_aVect_indexRA(o2x,avodepfld(k),perrWith='quiet')
+    kdep(k) = mct_aVect_indexRA(o2x,trim(avodepfld(k)),perrWith='quiet')
     if ( kdep(k) > 0 )then
        send_depths = .true.
     else
@@ -386,7 +386,7 @@ CONTAINS
     !
     if ( send_depths )then
        do k = 2, kdep_totals
-          kdep(k) = mct_aVect_indexRA(o2x,avodepfld(k))
+          kdep(k) = mct_aVect_indexRA(o2x,trim(avodepfld(k)))
           if ( kdep(k) == 0 )then
              call shr_sys_abort(trim(subname)//' ERROR: trying to send ocean depth information and an index is missing')
           end if
