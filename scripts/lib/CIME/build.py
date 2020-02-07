@@ -255,7 +255,7 @@ def _build_libraries(case, exeroot, sharedpath, caseroot, cimeroot, libroot, lid
         comp_lnd = case.get_value("COMP_LND")
         clm_config_opts = case.get_value("CLM_CONFIG_OPTS")
         if comp_lnd == "clm" and "clm4_0" not in clm_config_opts:
-            logging.info("         - Building clm4_5/clm5_0 Library ")
+            logging.info("         - Building clm4_5/clm5_0/CTSM Library ")
             esmfdir = "esmf" if case.get_value("USE_ESMF_LIB") else "noesmf"
             bldroot = os.path.join(sharedlibroot, sharedpath, comp_interface, esmfdir, "clm","obj" )
             libroot = os.path.join(exeroot, sharedpath, comp_interface, esmfdir, "lib")

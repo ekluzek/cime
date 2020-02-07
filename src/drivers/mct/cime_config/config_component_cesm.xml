@@ -128,7 +128,7 @@
     <valid_values>none,never,nsteps,nstep,nseconds,nsecond,nminutes,nminute,nhours,nhour,ndays,nday,nmonths,nmonth,nyears,nyear,date,ifdays0,end</valid_values>
     <default_value>never</default_value>
     <values match="last">
-      <value compset="_DATM.+_CLM">ndays</value>
+      <value compset="_DATM.+_CLM|_DATM.+CTSM">ndays</value>
     </values>
     <group>run_begin_stop_restart</group>
     <file>env_run.xml</file>
@@ -149,6 +149,8 @@
       <value compset="^OMIP_DATM%JRA.*_POP2%[^_]*ECO">CO2A</value>
       <value compset="HIST.*_DATM.*_CLM">CO2A</value>
       <value compset="SSP.*_DATM.*_CLM">CO2A</value>
+      <value compset="HIST.*_DATM.*_CTSM">CO2A</value>
+      <value compset="SSP.*_DATM.*_CTSM">CO2A</value>
       <value compset="_BGC%BPRP">CO2C</value>
       <value compset="_BGC%BDRD">CO2C</value>
     </values>
@@ -211,6 +213,7 @@
       <value compset="_CAM\d+%WCXI">288</value>
       <value compset="_DATM%COPYALL_NPS">72</value>
       <value compset="_DATM.*_CLM">48</value>
+      <value compset="_DATM.*_CTSM">48</value>
       <value compset="_DATM.*_DICE.*_POP2">4</value>
       <value compset="_DATM.*_SLND.*_CICE.*_POP2">24</value>
       <value compset="_DATM.*_CICE.*_DOCN">24</value>
@@ -545,6 +548,7 @@
     <values match="last">
       <value compset="_CLM45.+CISM\d">TRUE</value>
       <value compset="_CLM50.+CISM\d">TRUE</value>
+      <value compset="_CTSM.+CISM\d">TRUE</value>
       <!-- Turn on two-way coupling for TG compsets - even though there are no
            feedbacks for a TG compset, this will give us additional diagnostics -->
       <value compset="_DLND.+CISM\d">TRUE</value>
