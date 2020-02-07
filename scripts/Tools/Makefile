@@ -768,7 +768,7 @@ test_esmf: test_esmf.o
 #-------------------------------------------------------------------------------
 # create list of component libraries - hard-wired for current ccsm components
 #-------------------------------------------------------------------------------
-CLMVER = $(filter $(CLM_CONFIG_OPTS), clm5_0 clm4_5 ctsm5_1)
+CLMVER = $(filter $(CLM_CONFIG_OPTS), clm5_0 clm4_5 ctsm)
 ifeq ($(CIME_MODEL),cesm)
   ifneq ($(CLMVER),$(null))
     USE_SHARED_CLM=TRUE
