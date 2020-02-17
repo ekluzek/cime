@@ -181,10 +181,12 @@ contains
     allocate(mapper_Rr2o_liq)
     allocate(mapper_Rr2o_ice)
     allocate(mapper_SFi2o)
-    allocate(mapper_Rg2o_liq)
-    allocate(mapper_Rg2o_ice)
+    if ( glc_c2_ocn )then
+       allocate(mapper_Rg2o_liq)
+       allocate(mapper_Rg2o_ice)
+       allocate(mapper_Sg2o)
+    end if
     allocate(mapper_Sw2o)
-    allocate(mapper_Sg2o)
 
     if (ocn_present) then
 
@@ -441,7 +443,7 @@ contains
 
   !================================================================================================
 
-  subroutine prep_ocn_mrg(infodata, fractions_ox, xao_ox, timer_mrg)
+  subroutine prep_ocn_mrg(infodata, fractions_ox, xao_ox, timer_mrg, glc_c2_ocn)
 
     !---------------------------------------------------------------
     ! Description
@@ -452,6 +454,7 @@ contains
     type(mct_aVect)         , intent(in)    :: fractions_ox(:)
     type(mct_aVect)         , intent(in)    :: xao_ox(:) ! Atm-ocn fluxes, ocn grid, cpl pes
     character(len=*)        , intent(in)    :: timer_mrg
+    logical                 , intent(in)    :: glc_c2_ocn
     !
     ! Local Variables
     integer                  :: eii, ewi, egi, eoi, eai, eri, exi, efi, emi
@@ -495,7 +498,7 @@ contains
        endif
 
        call prep_ocn_merge( flux_epbalfact, a2x_ox(eai), i2x_ox(eii), r2x_ox(eri),  &
-            w2x_ox(ewi), g2x_ox(egi), xao_ox(exi), fractions_ox(efi), x2o_ox )
+            w2x_ox(ewi), g2x_ox(egi), xao_ox(exi), fractions_ox(efi), x2o_ox, glc_c2_ocn )
 
        if (x2o_average) then
           x2o_ox   => component_get_x2c_cx(ocn(1))
@@ -516,7 +519,7 @@ contains
   !================================================================================================
 
   subroutine prep_ocn_merge( flux_epbalfact, a2x_o, i2x_o, r2x_o, w2x_o, g2x_o, xao_o, &
-       fractions_o, x2o_o )
+       fractions_o, x2o_o, glc_c2_ocn )
 
     !-----------------------------------------------------------------------
     !
@@ -530,6 +533,7 @@ contains
     type(mct_aVect), intent(in)    :: xao_o
     type(mct_aVect), intent(in)    :: fractions_o
     type(mct_aVect), intent(inout) :: x2o_o
+    logical        , intent(in)    :: glc_c2_ocn      ! .true.=>glc to ocn coupling on
     !
     ! Local variables
     integer  :: n,ka,ki,ko,kr,kw,kx,kir,kor,i,i1,o1
@@ -766,7 +770,9 @@ contains
        call mct_aVect_setSharedIndices(r2x_o, x2o_o, r2x_SharedIndices)
        call mct_aVect_setSharedIndices(w2x_o, x2o_o, w2x_SharedIndices)
        call mct_aVect_setSharedIndices(xao_o, x2o_o, xao_SharedIndices)
-       call mct_aVect_setSharedIndices(g2x_o, x2o_o, g2o_SharedIndices)
+       if ( glc_c2_ocn )then
+          call mct_aVect_setSharedIndices(g2x_o, x2o_o, g2o_SharedIndices)
+       end if
 
        do ko = 1,noflds
           !--- document merge ---
@@ -903,7 +909,9 @@ contains
     call mct_aVect_copy(aVin=r2x_o, aVout=x2o_o, vector=mct_usevector, sharedIndices=r2x_SharedIndices)
     call mct_aVect_copy(aVin=w2x_o, aVout=x2o_o, vector=mct_usevector, sharedIndices=w2x_SharedIndices)
     call mct_aVect_copy(aVin=xao_o, aVout=x2o_o, vector=mct_usevector, sharedIndices=xao_SharedIndices)
-    call mct_aVect_copy(aVin=g2x_o, aVout=x2o_o, vector=mct_usevector, sharedIndices=g2o_SharedIndices)
+    if ( glc_c2_ocn )then
+       call mct_aVect_copy(aVin=g2x_o, aVout=x2o_o, vector=mct_usevector, sharedIndices=g2o_SharedIndices)
+    end if
 
     !--- document manual merges ---
     if (first_time) then
