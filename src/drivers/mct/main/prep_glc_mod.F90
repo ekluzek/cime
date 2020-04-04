@@ -137,6 +137,7 @@ contains
     logical                          :: esmf_map_flag ! .true. => use esmf for mapping
     logical                          :: iamroot_CPLID ! .true. => CPLID masterproc
     logical                          :: glc_present   ! .true. => glc is present
+    logical                          :: do_hist_l2x1yrg ! .true. => create aux files: l2x 1yr glc forcings
     character(CL)                    :: lnd_gnam      ! lnd grid
     character(CL)                    :: ocn_gnam      ! ond grid
     character(CL)                    :: glc_gnam      ! glc grid
@@ -150,6 +151,7 @@ contains
     call seq_infodata_getData(infodata , &
          esmf_map_flag=esmf_map_flag   , &
          glc_present=glc_present       , &
+         histaux_l2x1yrg=do_hist_l2x1yrg, &
          lnd_gnam=lnd_gnam             , &
          ocn_gnam=ocn_gnam             , &
          glc_gnam=glc_gnam)
@@ -167,6 +169,19 @@ contains
     allocate(mapper_Fo2g)
 
     smb_renormalize = prep_glc_do_renormalize_smb(infodata)
+
+    if ((glc_present .and. lnd_c2_glc) .or. do_hist_l2x1yrg) then
+
+       l2x_lx => component_get_c2x_cx(lnd(1))
+       lsize_l = mct_aVect_lsize(l2x_lx)
+
+       allocate(l2gacc_lx(num_inst_lnd))
+       do eli = 1,num_inst_lnd
+          call mct_aVect_init(l2gacc_lx(eli), rList=seq_flds_l2x_fields_to_glc, lsize=lsize_l)
+          call mct_aVect_zero(l2gacc_lx(eli))
+       end do
+       l2gacc_lx_cnt = 0
+    end if
 
     if (glc_present) then
 
