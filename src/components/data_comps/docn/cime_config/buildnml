@@ -43,6 +43,7 @@ def _create_namelists(case, confdir, inst_string, infile, nmlgen, data_list_path
     docn_mode = case.get_value("DOCN_MODE")
     ocn_grid = case.get_value("OCN_GRID")
     sstice_stream = case.get_value("SSTICE_STREAM")
+    ocn_cpl2_glc = case.get_value("OCN_C2_GLC")
 
     #----------------------------------------------------
     # Check for incompatible options.
@@ -65,6 +66,10 @@ def _create_namelists(case, confdir, inst_string, infile, nmlgen, data_list_path
     config['ocn_grid'] = ocn_grid
     config['docn_mode'] = docn_mode
     config['sstice_stream'] = sstice_stream
+    if ( ocn_cpl2_glc ):
+       config['ocn_c2_glc'] = "True"
+    else:
+       config['ocn_c2_glc'] = "False"
 
     #----------------------------------------------------
     # Initialize namelist defaults

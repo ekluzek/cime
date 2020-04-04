@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 _var_ref_re = re.compile(r"\$(\{)?(?P<name>\w+)(?(1)\})")
 
-_ymd_re = re.compile(r"%(?P<digits>[1-9][0-9]*)?y(?P<month>m(?P<day>d)?)?")
+_ymd_re = re.compile(r"%(?P<digits>[1-9][0-9]*)?y(?P<month>m(?P<day>d)?)?(?P<hlfhr>hh)?")
 
 _stream_file_template = """<?xml version="1.0"?>
 <file id="stream" version="1.0">
@@ -368,6 +368,8 @@ class NamelistGenerator(object):
                     months
             %ymd  = year-month-day from the range year_start to year_end with
                     all 12 months
+            %ymdhh= year-month-day-sec from the range year_start to year_end with
+                    all 12 months, and seconds into the day for every half hour
 
         For the date indicators, the year may be prefixed with a number of
         digits to use (the default is 4). E.g. `%2ymd` can be used to change the
@@ -397,7 +399,15 @@ class NamelistGenerator(object):
             else:
                 year_format = "{:04d}"
             for year in range(year_start, year_end+1):
-                if match.group('day'):
+                if match.group('hlfhr'):
+                    for month in range(1, 13):
+                        days = self._days_in_month(month)
+                        for day in range(1, days+1):
+                            for sec in range(0, 86400, 1800):
+                               date_string = (year_format + "-{:02d}-{:02d}-{:05d}").format(year, month, day, sec)
+                               new_line = line.replace(match.group(0), date_string)
+                               new_lines.append(new_line)
+                elif match.group('day'):
                     for month in range(1, 13):
                         days = self._days_in_month(month)
                         for day in range(1, days+1):

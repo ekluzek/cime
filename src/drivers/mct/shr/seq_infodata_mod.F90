@@ -119,7 +119,8 @@ MODULE seq_infodata_mod
      logical                 :: flux_albav      ! T => no diurnal cycle in ocn albedos
      logical                 :: flux_diurnal    ! T => diurnal cycle in atm/ocn fluxes
      logical                 :: coldair_outbreak_mod ! (Mahrt & Sun 1995,MWR)
-     logical                 :: ocn_c2_glc      ! Two-way ocn-glc coupling
+     logical                 :: ocn_c2_glc      ! ocn-glc coupling
+     logical                 :: glc_c2_ocn      ! glc-ocn coupling
      real(SHR_KIND_R8)       :: flux_convergence   ! atmocn flux calc convergence value
      integer                 :: flux_max_iteration ! max number of iterations of atmocn flux loop
      real(SHR_KIND_R8)       :: gust_fac        ! wind gustiness factor
@@ -359,7 +360,8 @@ CONTAINS
     logical                :: flux_albav         ! T => no diurnal cycle in ocn albedos
     logical                :: flux_diurnal       ! T => diurnal cycle in atm/ocn fluxes
     logical                 :: coldair_outbreak_mod ! (Mahrt & Sun 1995,MWR)
-    logical                 :: ocn_c2_glc         ! Two-way ocn-glc coupling
+    logical                 :: ocn_c2_glc         ! ocn-glc coupling
+    logical                 :: glc_c2_ocn         ! glc-ocn coupling
     real(SHR_KIND_R8)       :: flux_convergence   ! atmocn flux calc convergence value
     integer                 :: flux_max_iteration ! max number of iterations of atmocn flux loop
     real(SHR_KIND_R8)      :: gust_fac           ! wind gustiness factor
@@ -637,6 +639,7 @@ CONTAINS
        infodata%flux_convergence      = flux_convergence
        infodata%coldair_outbreak_mod      = coldair_outbreak_mod
        infodata%ocn_c2_glc            = ocn_c2_glc
+       infodata%glc_c2_ocn            = ocn_c2_glc     ! set by ocn to glc first, will be turned off if ocn is NOT prognostic
        infodata%flux_max_iteration    = flux_max_iteration
        infodata%gust_fac              = gust_fac
        infodata%glc_renormalize_smb   = glc_renormalize_smb
@@ -963,7 +966,7 @@ CONTAINS
        nextsw_cday, precip_fact, flux_epbal, flux_albav,                  &
        glc_g2lupdate, atm_aero, run_barriers, esmf_map_flag,              &
        do_budgets, do_histinit, drv_threading, flux_diurnal,              &
-       coldair_outbreak_mod, ocn_c2_glc, &
+       coldair_outbreak_mod, ocn_c2_glc, glc_c2_ocn,                      &
        flux_convergence, flux_max_iteration, gust_fac,                    &
        budget_inst, budget_daily, budget_month, wall_time_limit,          &
        budget_ann, budget_ltann, budget_ltend , force_stop_at,            &
@@ -1036,7 +1039,8 @@ CONTAINS
     logical,                optional, intent(OUT) :: flux_diurnal            ! T => diurnal cycle in atm/ocn flux
     real(SHR_KIND_R8), optional, intent(out)      :: flux_convergence   ! atmocn flux calc convergence value
     logical, optional, intent(out) :: coldair_outbreak_mod        ! (Mahrt & Sun 1995, MWR)
-    logical, optional, intent(out)                :: ocn_c2_glc         ! Two way ocn-glc coupling
+    logical, optional, intent(out)                :: ocn_c2_glc         ! ocn-glc coupling
+    logical, optional, intent(out)                :: glc_c2_ocn         ! glc-ocn coupling
     integer, optional, intent(OUT)                :: flux_max_iteration ! max number of iterations of atmocn flux loop
 
     real(SHR_KIND_R8),      optional, intent(OUT) :: gust_fac                ! wind gustiness factor
@@ -1214,6 +1218,7 @@ CONTAINS
     if ( present(flux_diurnal)   ) flux_diurnal   = infodata%flux_diurnal
     if ( present(coldair_outbreak_mod)) coldair_outbreak_mod = infodata%coldair_outbreak_mod
     if ( present(ocn_c2_glc))      ocn_c2_glc     = infodata%ocn_c2_glc
+    if ( present(glc_c2_ocn))      glc_c2_ocn     = infodata%glc_c2_ocn
     if ( present(flux_convergence)) flux_convergence = infodata%flux_convergence
     if ( present(flux_max_iteration)) flux_max_iteration = infodata%flux_max_iteration
     if ( present(gust_fac)       ) gust_fac       = infodata%gust_fac
@@ -1543,7 +1548,7 @@ CONTAINS
        nextsw_cday, precip_fact, flux_epbal, flux_albav,                  &
        glc_g2lupdate, atm_aero, esmf_map_flag, wall_time_limit,           &
        do_budgets, do_histinit, drv_threading, flux_diurnal,              &
-       coldair_outbreak_mod, ocn_c2_glc,                                                           &
+       coldair_outbreak_mod, ocn_c2_glc, glc_c2_ocn,                                               &
        flux_convergence, flux_max_iteration, gust_fac,                    &
        budget_inst, budget_daily, budget_month, force_stop_at,            &
        budget_ann, budget_ltann, budget_ltend ,                           &
@@ -1614,7 +1619,8 @@ CONTAINS
     logical,                optional, intent(IN)    :: flux_albav              ! T => no diurnal cycle in ocn albedos
     logical,                optional, intent(IN)    :: flux_diurnal            ! T => diurnal cycle in atm/ocn flux
     logical, optional, intent(in) :: coldair_outbreak_mod
-    logical, optional, intent(in)                   :: ocn_c2_glc              ! Two way ocn-glc coupling
+    logical, optional, intent(in)                   :: ocn_c2_glc              ! ocn-glc coupling
+    logical, optional, intent(in)                   :: glc_c2_ocn              ! glc-ocn coupling
     real(SHR_KIND_R8),      optional, intent(IN)    :: flux_convergence   ! atmocn flux calc convergence value
     integer,                optional, intent(IN)    :: flux_max_iteration ! max number of iterations of atmocn flux loop
     real(SHR_KIND_R8),      optional, intent(IN)    :: gust_fac                ! wind gustiness factor
@@ -1790,6 +1796,7 @@ CONTAINS
     if ( present(flux_diurnal)   ) infodata%flux_diurnal   = flux_diurnal
     if ( present(coldair_outbreak_mod)   ) infodata%coldair_outbreak_mod  = coldair_outbreak_mod
     if ( present(ocn_c2_glc)   )  infodata%ocn_c2_glc      = ocn_c2_glc
+    if ( present(glc_c2_ocn)   )  infodata%glc_c2_ocn      = glc_c2_ocn
     if ( present(flux_convergence)) infodata%flux_convergence  = flux_convergence
     if ( present(flux_max_iteration)) infodata%flux_max_iteration   = flux_max_iteration
     if ( present(gust_fac)       ) infodata%gust_fac       = gust_fac
@@ -2213,6 +2220,7 @@ CONTAINS
     call shr_mpi_bcast(infodata%flux_diurnal,            mpicom)
     call shr_mpi_bcast(infodata%coldair_outbreak_mod,            mpicom)
     call shr_mpi_bcast(infodata%ocn_c2_glc,              mpicom)
+    call shr_mpi_bcast(infodata%glc_c2_ocn,              mpicom)
     call shr_mpi_bcast(infodata%flux_convergence,        mpicom)
     call shr_mpi_bcast(infodata%flux_max_iteration,      mpicom)
     call shr_mpi_bcast(infodata%gust_fac,                mpicom)
@@ -2886,6 +2894,7 @@ CONTAINS
     write(logunit,F0L) subname,'flux_diurnal             = ', infodata%flux_diurnal
     write(logunit,F0L) subname,'coldair_outbreak_mod            = ', infodata%coldair_outbreak_mod
     write(logunit,F0L) subname,'ocn_c2_glc               = ', infodata%ocn_c2_glc
+    write(logunit,F0L) subname,'glc_c2_ocn               = ', infodata%glc_c2_ocn
     write(logunit,F0R) subname,'flux_convergence         = ', infodata%flux_convergence
     write(logunit,F0I) subname,'flux_max_iteration       = ', infodata%flux_max_iteration
     write(logunit,F0R) subname,'gust_fac                 = ', infodata%gust_fac

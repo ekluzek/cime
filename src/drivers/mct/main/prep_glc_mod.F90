@@ -159,14 +159,16 @@ contains
     allocate(mapper_Sl2g)
     allocate(mapper_Fl2g)
     allocate(mapper_Fg2l)
-    allocate(mapper_So2g)
-    allocate(mapper_So2g_10)
-    allocate(mapper_So2g_19)
-    allocate(mapper_So2g_26)
-    allocate(mapper_So2g_30)
-    allocate(mapper_So2g_33)
-    allocate(mapper_So2g_35)
-    allocate(mapper_Fo2g)
+    if ( ocn_c2_glc ) then
+       allocate(mapper_So2g)
+       allocate(mapper_So2g_10)
+       allocate(mapper_So2g_19)
+       allocate(mapper_So2g_26)
+       allocate(mapper_So2g_30)
+       allocate(mapper_So2g_33)
+       allocate(mapper_So2g_35)
+       allocate(mapper_Fo2g)
+    end if
 
     smb_renormalize = prep_glc_do_renormalize_smb(infodata)
 

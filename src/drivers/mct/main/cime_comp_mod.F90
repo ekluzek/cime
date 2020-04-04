@@ -1484,12 +1484,13 @@ contains
     endif
     if (glc_present) then
        if (glclnd_present .and. lnd_prognostic) glc_c2_lnd = .true.
-       if (ocn_prognostic .and. (glcocn_present .or. ocn_c2_glc) ) glc_c2_ocn = .true.
+       if (ocn_prognostic .and. (glcocn_present .and. ocn_c2_glc) ) glc_c2_ocn = .true.
        if (glcice_present .and. iceberg_prognostic) glc_c2_ice = .true.
     endif
     if (wav_present) then
        if (ocn_prognostic) wav_c2_ocn = .true.
     endif
+    call seq_infodata_PutData(infodata, glc_c2_ocn=glc_c2_ocn )
 
     !----------------------------------------------------------
     ! Set domain check and other flag
@@ -2408,7 +2409,8 @@ contains
           !----------------------------------------------------------
 
           xao_ox => prep_aoflux_get_xao_ox()
-          call prep_ocn_mrg(infodata, fractions_ox, xao_ox=xao_ox, timer_mrg='CPL:atmocnp_mrgx2o')
+          call prep_ocn_mrg(infodata, fractions_ox, xao_ox=xao_ox, timer_mrg='CPL:atmocnp_mrgx2o', &
+                            glc_c2_ocn=glc_c2_ocn)
 
           ! Accumulate ocn inputs - form partial sum of tavg ocn inputs (virtual "send" to ocn)
           call prep_ocn_accum(timer='CPL:atmocnp_accum')
@@ -2840,7 +2842,8 @@ contains
              if (cpl_seq_option == 'CESM1_ORIG' .or. &
                   cpl_seq_option == 'CESM1_ORIG_TIGHT') then
                 xao_ox => prep_aoflux_get_xao_ox()
-                call prep_ocn_mrg(infodata, fractions_ox, xao_ox=xao_ox, timer_mrg='CPL:atmocnp_mrgx2o')
+                call prep_ocn_mrg(infodata, fractions_ox, xao_ox=xao_ox, timer_mrg='CPL:atmocnp_mrgx2o', &
+                            glc_c2_ocn=glc_c2_ocn)
 
                 ! Accumulate ocn inputs - form partial sum of tavg ocn inputs (virtual "send" to ocn)
                 call prep_ocn_accum(timer='CPL:atmocnp_accum')
@@ -2909,7 +2912,8 @@ contains
                   cpl_seq_option == 'CESM1_MOD_TIGHT') then
 
                 xao_ox => prep_aoflux_get_xao_ox()
-                call prep_ocn_mrg(infodata, fractions_ox, xao_ox=xao_ox, timer_mrg='CPL:atmocnp_mrgx2o')
+                call prep_ocn_mrg(infodata, fractions_ox, xao_ox=xao_ox, timer_mrg='CPL:atmocnp_mrgx2o', &
+                            glc_c2_ocn=glc_c2_ocn)
 
                 ! Accumulate ocn inputs - form partial sum of tavg ocn inputs (virtual "send" to ocn)
                 call prep_ocn_accum(timer='CPL:atmocnp_accum')
@@ -3326,7 +3330,8 @@ contains
           !----------------------------------------------------------
 
           xao_ox => prep_aoflux_get_xao_ox()
-          call prep_ocn_mrg(infodata, fractions_ox, xao_ox=xao_ox, timer_mrg='CPL:atmocnp_mrgx2o')
+          call prep_ocn_mrg(infodata, fractions_ox, xao_ox=xao_ox, timer_mrg='CPL:atmocnp_mrgx2o', &
+                            glc_c2_ocn=glc_c2_ocn)
 
           ! Accumulate ocn inputs - form partial sum of tavg ocn inputs (virtual "send" to ocn)
           call prep_ocn_accum(timer='CPL:atmocnp_accum')
