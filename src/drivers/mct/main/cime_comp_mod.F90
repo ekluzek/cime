@@ -3103,7 +3103,7 @@ contains
           call t_drvstartf ('CPL:AVG_L2X1YRG',cplrun=.true.,barrier=mpicom_CPLID)
           if (drv_threading) call seq_comm_setnthreads(nthreads_CPLID)
 
-          call prep_glc_accum_avg(timer='CPL:glcprep_avg')
+          call prep_glc_accum_avg_o2g(timer='CPL:glcprep_avg')
           lnd2glc_averaged_now = .true.
 
           if (drv_threading) call seq_comm_setnthreads(nthreads_GLOID)
