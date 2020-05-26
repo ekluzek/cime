@@ -183,7 +183,9 @@ module seq_flds_mod
   character(CXX) :: seq_flds_x2l_fluxes_from_glc
 
   character(CXX) :: seq_flds_o2x_states
+  character(CXX) :: seq_flds_o2x_states_to_glc
   character(CXX) :: seq_flds_o2x_fluxes
+  character(CXX) :: seq_flds_o2x_fluxes_to_glc
   character(CXX) :: seq_flds_x2o_states
   character(CXX) :: seq_flds_x2o_fluxes
 
@@ -232,6 +234,7 @@ module seq_flds_mod
   character(CXX) :: seq_flds_x2l_fields
   character(CXX) :: seq_flds_x2l_fields_from_glc
   character(CXX) :: seq_flds_o2x_fields
+  character(CXX) :: seq_flds_o2x_fields_to_glc
   character(CXX) :: seq_flds_x2o_fields
   character(CXX) :: seq_flds_xao_fields
   character(CXX) :: seq_flds_r2x_fields
@@ -311,7 +314,9 @@ contains
     character(CXX) :: x2l_fluxes = ''
     character(CXX) :: x2l_fluxes_from_glc = ''
     character(CXX) :: o2x_states = ''
+    character(CXX) :: o2x_states_to_glc = ''
     character(CXX) :: o2x_fluxes = ''
+    character(CXX) :: o2x_fluxes_to_glc = ''
     character(CXX) :: x2o_states = ''
     character(CXX) :: x2o_fluxes = ''
     character(CXX) :: g2x_states = ''
@@ -1529,6 +1534,7 @@ contains
 
       ! Melt rate
       call seq_flds_add(o2x_fluxes,"Fogo_mr")
+      call seq_flds_add(o2x_fluxes_to_glc,"Fogo_mr")
       call seq_flds_add(x2g_fluxes,"Fogo_mr")
       call seq_flds_add(x2g_fluxes_from_ocn,"Fogo_mr")
       longname = 'Basal melt rate'
@@ -1538,11 +1544,13 @@ contains
       call metadata_set(attname, longname, stdname, units)
 
       ! Temperature at surface
+      call seq_flds_add(o2x_states_to_glc,"So_t")
       call seq_flds_add(x2g_states,"So_t")
       call seq_flds_add(x2g_states_from_ocn,"So_t")
 
       ! Temperature at ocean vlev 10
       call seq_flds_add(o2x_states,"So_t_10")
+      call seq_flds_add(o2x_states_to_glc,"So_t_10")
       call seq_flds_add(x2g_states,"So_t_10")
       call seq_flds_add(x2g_states_from_ocn,"So_t_10")
       longname = 'Temperature at ocean vertical level 10'
@@ -1553,6 +1561,7 @@ contains
 
       ! Temperature at ocean vlev 19
       call seq_flds_add(o2x_states,"So_t_19")
+      call seq_flds_add(o2x_states_to_glc,"So_t_19")
       call seq_flds_add(x2g_states,"So_t_19")
       call seq_flds_add(x2g_states_from_ocn,"So_t_19")
       longname = 'Temperature at ocean vertical level 19'
@@ -1563,6 +1572,7 @@ contains
 
       ! Temperature at ocean vlev 26
       call seq_flds_add(o2x_states,"So_t_26")
+      call seq_flds_add(o2x_states_to_glc,"So_t_26")
       call seq_flds_add(x2g_states,"So_t_26")
       call seq_flds_add(x2g_states_from_ocn,"So_t_26")
       longname = 'Temperature at ocean vertical level 26'
@@ -1573,6 +1583,7 @@ contains
 
       ! Temperature at ocean vlev 30
       call seq_flds_add(o2x_states,"So_t_30")
+      call seq_flds_add(o2x_states_to_glc,"So_t_30")
       call seq_flds_add(x2g_states,"So_t_30")
       call seq_flds_add(x2g_states_from_ocn,"So_t_30")
       longname = 'Temperature at ocean vertical level 30'
@@ -1583,6 +1594,7 @@ contains
 
       ! Temperature at ocean vlev 33
       call seq_flds_add(o2x_states,"So_t_33")
+      call seq_flds_add(o2x_states_to_glc,"So_t_33")
       call seq_flds_add(x2g_states,"So_t_33")
       call seq_flds_add(x2g_states_from_ocn,"So_t_33")
       longname = 'Temperature at ocean vertical level 33'
@@ -1593,6 +1605,7 @@ contains
 
       ! Temperature at ocean vlev 35
       call seq_flds_add(o2x_states,"So_t_35")
+      call seq_flds_add(o2x_states_to_glc,"So_t_35")
       call seq_flds_add(x2g_states,"So_t_35")
       call seq_flds_add(x2g_states_from_ocn,"So_t_35")
       longname = 'Temperature at ocean vertical level 35'
@@ -1602,11 +1615,13 @@ contains
       call metadata_set(attname, longname, stdname, units)
 
       ! Sea surface  salinity
+      call seq_flds_add(o2x_states_to_glc,"So_s")
       call seq_flds_add(x2g_states,"So_s")
       call seq_flds_add(x2g_states_from_ocn,"So_s")
 
       ! Sea surface  salinity
       call seq_flds_add(o2x_states,"So_s_10")
+      call seq_flds_add(o2x_states_to_glc,"So_s_10")
       call seq_flds_add(x2g_states,"So_s_10")
       call seq_flds_add(x2g_states_from_ocn,"So_s_10")
       longname = 'Salinity at ocean vertical level 10'
@@ -1617,6 +1632,7 @@ contains
 
       ! Sea surface  salinity
       call seq_flds_add(o2x_states,"So_s_19")
+      call seq_flds_add(o2x_states_to_glc,"So_s_19")
       call seq_flds_add(x2g_states,"So_s_19")
       call seq_flds_add(x2g_states_from_ocn,"So_s_19")
       longname = 'Salinity at ocean vertical level 19'
@@ -1627,6 +1643,7 @@ contains
 
       ! Sea surface  salinity
       call seq_flds_add(o2x_states,"So_s_26")
+      call seq_flds_add(o2x_states_to_glc,"So_s_26")
       call seq_flds_add(x2g_states,"So_s_26")
       call seq_flds_add(x2g_states_from_ocn,"So_s_26")
       longname = 'Salinity at ocean vertical level 26'
@@ -1637,6 +1654,7 @@ contains
 
       ! Sea surface  salinity
       call seq_flds_add(o2x_states,"So_s_30")
+      call seq_flds_add(o2x_states_to_glc,"So_s_30")
       call seq_flds_add(x2g_states,"So_s_30")
       call seq_flds_add(x2g_states_from_ocn,"So_s_30")
       longname = 'Salinity at ocean vertical level 30'
@@ -1647,6 +1665,7 @@ contains
 
       ! Sea surface  salinity
       call seq_flds_add(o2x_states,"So_s_33")
+      call seq_flds_add(o2x_states_to_glc,"So_s_33")
       call seq_flds_add(x2g_states,"So_s_33")
       call seq_flds_add(x2g_states_from_ocn,"So_s_33")
       longname = 'Salinity at ocean vertical level 33'
@@ -1657,6 +1676,7 @@ contains
 
       ! Sea surface  salinity
       call seq_flds_add(o2x_states,"So_s_35")
+      call seq_flds_add(o2x_states_to_glc,"So_s_35")
       call seq_flds_add(x2g_states,"So_s_35")
       call seq_flds_add(x2g_states_from_ocn,"So_s_35")
       longname = 'Salinity at ocean vertical level 35'
@@ -3368,6 +3388,7 @@ contains
     seq_flds_x2l_states = trim(x2l_states)
     seq_flds_x2l_states_from_glc = trim(x2l_states_from_glc)
     seq_flds_o2x_states = trim(o2x_states)
+    seq_flds_o2x_states_to_glc = trim(o2x_states_to_glc)
     seq_flds_x2o_states = trim(x2o_states)
     seq_flds_g2x_states = trim(g2x_states)
     seq_flds_g2x_states_to_lnd = trim(g2x_states_to_lnd)
@@ -3393,6 +3414,7 @@ contains
     seq_flds_x2l_fluxes = trim(x2l_fluxes)
     seq_flds_x2l_fluxes_from_glc = trim(x2l_fluxes_from_glc)
     seq_flds_o2x_fluxes = trim(o2x_fluxes)
+    seq_flds_o2x_fluxes_to_glc = trim(o2x_fluxes_to_glc)
     seq_flds_x2o_fluxes = trim(x2o_fluxes)
     seq_flds_g2x_fluxes = trim(g2x_fluxes)
     seq_flds_g2x_fluxes_to_lnd = trim(g2x_fluxes_to_lnd)
@@ -3454,6 +3476,7 @@ contains
     call catFields(seq_flds_x2l_fields, seq_flds_x2l_states, seq_flds_x2l_fluxes)
     call catFields(seq_flds_x2l_fields_from_glc, seq_flds_x2l_states_from_glc, seq_flds_x2l_fluxes_from_glc)
     call catFields(seq_flds_o2x_fields, seq_flds_o2x_states, seq_flds_o2x_fluxes)
+    call catFields(seq_flds_o2x_fields_to_glc, seq_flds_o2x_states_to_glc, seq_flds_o2x_fluxes_to_glc)
     call catFields(seq_flds_x2o_fields, seq_flds_x2o_states, seq_flds_x2o_fluxes)
     call catFields(seq_flds_g2x_fields, seq_flds_g2x_states, seq_flds_g2x_fluxes)
     call catFields(seq_flds_g2x_fields_to_lnd, seq_flds_g2x_states_to_lnd, seq_flds_g2x_fluxes_to_lnd)

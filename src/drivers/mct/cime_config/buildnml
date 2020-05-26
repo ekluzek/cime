@@ -43,6 +43,7 @@ def _create_drv_namelists(case, infile, confdir, nmlgen, files):
     config['BUDGETS'] = case.get_value('BUDGETS')
     config['MACH'] = case.get_value('MACH')
     config['MPILIB'] = case.get_value('MPILIB')
+    config['OCN_C2_GLC'] = case.get_value('OCN_C2_GLC')
     config['MULTI_DRIVER'] = '.true.' if case.get_value('MULTI_DRIVER') else '.false.'
     config['OS'] = case.get_value('OS')
     config['glc_nec'] = 0 if case.get_value('GLC_NEC') == 0 else case.get_value('GLC_NEC')
@@ -169,6 +170,12 @@ def _create_drv_namelists(case, infile, confdir, nmlgen, files):
 
         nmlgen.set_value('esp_cpl_dt', value=esp_time)
     # End if pause is active
+
+    # Error check
+    if ( not config['OCN_C2_GLC'] ):
+       histaux_o2x1yrg = nmlgen.get_value('histaux_o2x1yrg')
+       isfalse = re.compile( "[fF]" )
+       expect( (isfalse.search( histaux_o2x1yrg ) != None)  or  (histaux_o2x1yrg == ""), "If OCN_C2_GLC is NOT TRUE histaux_o2x1yrg can NOT be true")
 
     #--------------------------------
     # (1) Write output namelist file drv_in and  input dataset list.

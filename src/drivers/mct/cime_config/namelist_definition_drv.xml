@@ -1216,6 +1216,20 @@
     </values>
   </entry>
 
+  <entry id="histaux_o2x1yrg">
+    <type>logical</type>
+    <category>history</category>
+    <group>seq_infodata_inparm</group>
+    <desc>
+      turns on coupler history stream for annual ocn to coupler glc forcing fields.
+      Can only be set to true if $OCN_C2_GLC is TRUE
+      default: false
+    </desc>
+    <values>
+      <value>.false.</value>
+    </values>
+  </entry>
+
   <entry id="histaux_double_precision">
     <type>logical</type>
     <category>history</category>

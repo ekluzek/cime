@@ -47,6 +47,9 @@ module prep_glc_mod
   public :: prep_glc_get_l2gacc_lx
   public :: prep_glc_get_l2gacc_lx_one_instance
   public :: prep_glc_get_l2gacc_lx_cnt
+  public :: prep_glc_get_o2gacc_ox
+  public :: prep_glc_get_o2gacc_ox_one_instance
+  public :: prep_glc_get_o2gacc_ox_cnt
   public :: prep_glc_get_mapper_Sl2g
   public :: prep_glc_get_mapper_Fl2g
   public :: prep_glc_get_mapper_Fo2g
@@ -138,6 +141,7 @@ contains
     logical                          :: iamroot_CPLID ! .true. => CPLID masterproc
     logical                          :: glc_present   ! .true. => glc is present
     logical                          :: do_hist_l2x1yrg ! .true. => create aux files: l2x 1yr glc forcings
+    logical                          :: do_hist_o2x1yrg ! .true. => create aux files: o2x 1yr glc forcings
     character(CL)                    :: lnd_gnam      ! lnd grid
     character(CL)                    :: ocn_gnam      ! ond grid
     character(CL)                    :: glc_gnam      ! glc grid
@@ -152,6 +156,7 @@ contains
          esmf_map_flag=esmf_map_flag   , &
          glc_present=glc_present       , &
          histaux_l2x1yrg=do_hist_l2x1yrg, &
+         histaux_o2x1yrg=do_hist_o2x1yrg, &
          lnd_gnam=lnd_gnam             , &
          ocn_gnam=ocn_gnam             , &
          glc_gnam=glc_gnam)
@@ -183,6 +188,19 @@ contains
           call mct_aVect_zero(l2gacc_lx(eli))
        end do
        l2gacc_lx_cnt = 0
+    end if
+
+    if ((glc_present .and. ocn_c2_glc) .or. do_hist_o2x1yrg) then
+
+       o2x_ox => component_get_c2x_cx(ocn(1))
+       lsize_o = mct_aVect_lsize(o2x_ox)
+
+       allocate(o2gacc_ox(num_inst_ocn))
+       do eoi = 1,num_inst_ocn
+          call mct_aVect_init(o2gacc_ox(eoi), rList=seq_flds_o2x_fields_to_glc, lsize=lsize_o)
+          call mct_aVect_zero(o2gacc_ox(eoi))
+       end do
+       o2gacc_ox_cnt = 0
     end if
 
     if (glc_present) then
@@ -1443,6 +1461,22 @@ contains
     integer, pointer :: prep_glc_get_l2gacc_lx_cnt
     prep_glc_get_l2gacc_lx_cnt => l2gacc_lx_cnt
   end function prep_glc_get_l2gacc_lx_cnt
+
+  function prep_glc_get_o2gacc_ox()
+    type(mct_aVect), pointer :: prep_glc_get_o2gacc_ox(:)
+    prep_glc_get_o2gacc_ox => o2gacc_ox(:)
+  end function prep_glc_get_o2gacc_ox
+
+  function prep_glc_get_o2gacc_ox_one_instance(ocn_inst)
+    integer, intent(in) :: ocn_inst
+    type(mct_aVect), pointer :: prep_glc_get_o2gacc_ox_one_instance
+    prep_glc_get_o2gacc_ox_one_instance => o2gacc_ox(ocn_inst)
+  end function prep_glc_get_o2gacc_ox_one_instance
+
+  function prep_glc_get_o2gacc_ox_cnt()
+    integer, pointer :: prep_glc_get_o2gacc_ox_cnt
+    prep_glc_get_o2gacc_ox_cnt => o2gacc_ox_cnt
+  end function prep_glc_get_o2gacc_ox_cnt
 
   function prep_glc_get_mapper_Sl2g()
     type(seq_map), pointer :: prep_glc_get_mapper_Sl2g

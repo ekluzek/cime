@@ -433,6 +433,7 @@ module cime_comp_mod
   logical :: do_hist_l2x             ! create aux files: l2x
   logical :: do_hist_a2x24hr         ! create aux files: a2x
   logical :: do_hist_l2x1yrg         ! create aux files: l2x 1yr glc forcings
+  logical :: do_hist_o2x1yrg         ! create aux files: o2x 1yr glc forcings
   logical :: do_hist_a2x             ! create aux files: a2x
   logical :: do_hist_a2x3hrp         ! create aux files: a2x 3hr precip
   logical :: do_hist_a2x3hr          ! create aux files: a2x 3hr states
@@ -973,6 +974,7 @@ contains
          histaux_a2x24hr=do_hist_a2x24hr           , &
          histaux_l2x=do_hist_l2x                   , &
          histaux_l2x1yrg=do_hist_l2x1yrg           , &
+         histaux_o2x1yrg=do_hist_o2x1yrg           , &
          histaux_r2x=do_hist_r2x                   , &
          run_barriers=run_barriers                 , &
          mct_usealltoall=mct_usealltoall           , &
@@ -1513,6 +1515,10 @@ contains
        do_histavg = .false.
     endif
 
+    if (do_hist_o2x1yrg .and. (.not. ocn_c2_glc) ) then
+       write(logunit,*) 'do_hist_o2x1yrg = ', do_hist_o2x1yrg, ' ocn_c2_glc = ', ocn_c2_glc
+       call shr_sys_abort('do_hist_o2x1yrg can only be set to true if ocn_c2_glc is also on')
+    end if
     !----------------------------------------------------------
     !| Write component and coupler setup information
     !----------------------------------------------------------
@@ -2158,6 +2164,7 @@ contains
     type(ESMF_Time)    :: etime_curr            ! Current model time
     real(r8)           :: tbnds1_offset         ! Time offset for call to seq_hist_writeaux
     logical            :: lnd2glc_averaged_now  ! Whether lnd2glc averages were taken this timestep
+    logical            :: ocn2glc_averaged_now  ! Whether ocn2glc averages were taken this timestep
 
 101 format( A, i10.8, i8, 12A, A, F8.2, A, F8.2 )
 102 format( A, i10.8, i8, A, 8L3 )
@@ -2233,7 +2240,7 @@ contains
        ! Does the driver need to pause?
        drv_pause = pause_alarm .and. seq_timemgr_pause_component_active(drv_index)
 
-       if (glc_prognostic .or. do_hist_l2x1yrg) then
+       if (glc_prognostic .or. do_hist_l2x1yrg .or. do_hist_o2x1yrg) then
           ! Is it time to average fields to pass to glc?
           !
           ! Note that the glcrun_avg_alarm just controls what is passed to glc in terms
@@ -2243,7 +2250,7 @@ contains
           ! than the glcrun interval.
           !
           ! Note also that we need to set glcrun_avg_alarm even if glc_prognostic is
-          ! false, if do_hist_l2x1yrg is set, so that we have valid cpl hist fields
+          ! false, if do_hist_l2x1yrg or do_hist_o2x1yrg is set, so that we have valid cpl hist fields
           glcrun_avg_alarm = seq_timemgr_alarmIsOn(EClock_d,seq_timemgr_alarm_glcrun_avg)
           if (glc_prognostic .and. glcrun_avg_alarm .and. .not. glcrun_alarm) then
              write(logunit,*) 'ERROR: glcrun_avg_alarm is true, but glcrun_alarm is false'
@@ -2275,6 +2282,7 @@ contains
        if (month==1 .and. day==1 .and. tod==0) t1yr_alarm = .true.
 
        lnd2glc_averaged_now = .false.
+       ocn2glc_averaged_now = .false.
 
        if (seq_timemgr_alarmIsOn(EClock_d,seq_timemgr_alarm_datestop)) then
           if (iamroot_CPLID) then
@@ -2805,7 +2813,7 @@ contains
                   info_debug=info_debug, timer_diag='CPL:ocnpost_diagav')
 
              ! Accumulate glc inputs
-             if (ocn_c2_glc) then
+             if (ocn_c2_glc .or. do_hist_o2x1yrg) then
                 call prep_glc_accum_o2g(timer='CPL:ocnpost_acco2g' )
              endif
 
@@ -3009,31 +3017,7 @@ contains
              call t_drvstartf ('CPL:GLCPREP',cplrun=.true.,barrier=mpicom_CPLID)
              if (drv_threading) call seq_comm_setnthreads(nthreads_CPLID)
 
-             !if (lnd_c2_glc) then
-             !   ! NOTE - only create appropriate input to glc if the avg_alarm is on
-
-             !   if (glcrun_avg_alarm) then
-             !      call prep_glc_accum_avg_l2g(timer='CPL:glcprep_avg')
-             !      lnd2glc_averaged_now = .true.
-
-             !      ! Note that l2x_gx is obtained from mapping the module variable l2gacc_lx
-             !      call prep_glc_calc_l2x_gx(fractions_lx, timer='CPL:glcprep_lnd2glc')
-
-             !      call prep_glc_mrg_l2g(infodata, fractions_gx, timer_mrg='CPL:glcprep_mrgx2g')
-
-             !      call component_diag(infodata, glc, flow='x2c', comment='send glc', &
-             !           info_debug=info_debug, timer_diag='CPL:glcprep_diagav')
-
-             !   else if (.not. ocn_c2_glc) then
-             !      call prep_glc_zero_fields()
-             !   end if  ! glcrun_avg_alarm
-             !end if  ! lnd_c2_glc
-
-             !if (ocn_c2_glc) then
-             !   call prep_glc_calc_o2x_gx(fractions_ox, timer='CPL:glcprep_ocn2glc')
-             !   call prep_glc_mrg_o2g(infodata, fractions_gx, timer_mrg='CPL:glcprep_mrgx2g')
-             !endif ! ocn_c2_glc
-
+             ! NOTE - only create appropriate input to glc if the avg_alarm is on
              if (glcrun_avg_alarm) then
 
                 if (lnd_c2_glc) then
@@ -3048,6 +3032,8 @@ contains
 
                 if (ocn_c2_glc) then
                    call prep_glc_accum_avg_o2g(timer='CPL:glcprep_avg_o2g')
+                   ocn2glc_averaged_now = .true.
+
                    call prep_glc_calc_o2x_gx(fractions_ox, timer='CPL:glcprep_ocn2glc')
                    call prep_glc_mrg_o2g(infodata, fractions_gx, timer_mrg='CPL:glcprep_mrgx2g')
                 endif
@@ -3103,11 +3089,32 @@ contains
           call t_drvstartf ('CPL:AVG_L2X1YRG',cplrun=.true.,barrier=mpicom_CPLID)
           if (drv_threading) call seq_comm_setnthreads(nthreads_CPLID)
 
-          call prep_glc_accum_avg_o2g(timer='CPL:glcprep_avg')
+          call prep_glc_accum_avg_l2g(timer='CPL:glcprep_avg')
           lnd2glc_averaged_now = .true.
 
           if (drv_threading) call seq_comm_setnthreads(nthreads_GLOID)
           call t_drvstopf  ('CPL:AVG_L2X1YRG',cplrun=.true.)
+       end if
+
+       ! ------------------------------------------------------------------------
+       ! Also average ocn2glc fields if needed for requested o2x1yrg auxiliary history
+       ! files, even if running with a stub glc model.
+       ! ------------------------------------------------------------------------
+
+       if (do_hist_o2x1yrg .and. iamin_CPLID .and. glcrun_avg_alarm .and. &
+            .not. ocn2glc_averaged_now) then
+          ! Checking .not. ocn2glc_averaged_now ensures that we don't do this averaging a
+          ! second time if we already did it above (because we're running with a
+          ! prognostic glc model).
+          call cime_comp_barriers(mpicom=mpicom_CPLID, timer='CPL:AVG_O2X1YRG_BARRIER')
+          call t_drvstartf ('CPL:AVG_O2X1YRG',cplrun=.true.,barrier=mpicom_CPLID)
+          if (drv_threading) call seq_comm_setnthreads(nthreads_CPLID)
+
+          call prep_glc_accum_avg_o2g(timer='CPL:glcprep_avg')
+          ocn2glc_averaged_now = .true.
+
+          if (drv_threading) call seq_comm_setnthreads(nthreads_GLOID)
+          call t_drvstopf  ('CPL:AVG_O2X1YRG',cplrun=.true.)
        end if
 
        !----------------------------------------------------------
@@ -3858,7 +3865,7 @@ contains
              enddo
           endif
 
-          if (do_hist_l2x1yrg) then
+          if (do_hist_l2x1yrg .or. do_hist_o2x1yrg) then
              ! We use a different approach here than for other aux hist files: For other
              ! files, we let seq_hist_writeaux accumulate fields in time. However, if we
              ! stop in the middle of an accumulation period, these accumulated fields get
@@ -3871,21 +3878,41 @@ contains
              ! year boundary - no more and no less. If that's not the case, we're likely
              ! to be writing the wrong thing to these aux files, so we check that
              ! assumption here.
-             if (t1yr_alarm .and. .not. lnd2glc_averaged_now) then
-                write(logunit,*) 'ERROR: histaux_l2x1yrg requested;'
-                write(logunit,*) 'it is the year boundary, but lnd2glc fields were not averaged this time step.'
-                call shr_sys_abort(subname// &
-                     ' do_hist_l2x1yrg and t1yr_alarm are true, but lnd2glc_averaged_now is false')
+             if ( do_hist_l2x1yrg ) then
+                if (t1yr_alarm .and. .not. lnd2glc_averaged_now) then
+                   write(logunit,*) 'ERROR: histaux_l2x1yrg requested;'
+                   write(logunit,*) 'it is the year boundary, but lnd2glc fields were not averaged this time step.'
+                   call shr_sys_abort(subname// &
+                        ' do_hist_l2x1yrg and t1yr_alarm are true, but lnd2glc_averaged_now is false')
+                end if
+                if (lnd2glc_averaged_now .and. .not. t1yr_alarm) then
+                   ! If we're averaging more frequently than yearly, then just writing the
+                   ! current values of the averaged fields once per year won't give the true
+                   ! annual averages.
+                   write(logunit,*) 'ERROR: histaux_l2x1yrg requested;'
+                   write(logunit,*) 'lnd2glc fields were averaged this time step, but it is not the year boundary.'
+                   write(logunit,*) '(It only works to request histaux_l2x1yrg if GLC_AVG_PERIOD is yearly.)'
+                   call shr_sys_abort(subname// &
+                        ' do_hist_l2x1yrg and lnd2glc_averaged_now are true, but t1yr_alarm is false')
+                end if
              end if
-             if (lnd2glc_averaged_now .and. .not. t1yr_alarm) then
-                ! If we're averaging more frequently than yearly, then just writing the
-                ! current values of the averaged fields once per year won't give the true
-                ! annual averages.
-                write(logunit,*) 'ERROR: histaux_l2x1yrg requested;'
-                write(logunit,*) 'lnd2glc fields were averaged this time step, but it is not the year boundary.'
-                write(logunit,*) '(It only works to request histaux_l2x1yrg if GLC_AVG_PERIOD is yearly.)'
-                call shr_sys_abort(subname// &
-                     ' do_hist_l2x1yrg and lnd2glc_averaged_now are true, but t1yr_alarm is false')
+             if ( do_hist_o2x1yrg ) then
+                if (t1yr_alarm .and. .not. ocn2glc_averaged_now) then
+                   write(logunit,*) 'ERROR: histaux_o2x1yrg requested;'
+                   write(logunit,*) 'it is the year boundary, but ocn2glc fields were not averaged this time step.'
+                   call shr_sys_abort(subname// &
+                        ' do_hist_o2x1yrg and t1yr_alarm are true, but ocn2glc_averaged_now is false')
+                end if
+                if (ocn2glc_averaged_now .and. .not. t1yr_alarm) then
+                   ! If we're averaging more frequently than yearly, then just writing the
+                   ! current values of the averaged fields once per year won't give the true
+                   ! annual averages.
+                   write(logunit,*) 'ERROR: histaux_o2x1yrg requested;'
+                   write(logunit,*) 'ocn2glc fields were averaged this time step, but it is not the year boundary.'
+                   write(logunit,*) '(It only works to request histaux_o2x1yrg if GLC_AVG_PERIOD is yearly.)'
+                   call shr_sys_abort(subname// &
+                        ' do_hist_o2x1yrg and ocn2glc_averaged_now are true, but t1yr_alarm is false')
+                end if
              end if
 
              if (t1yr_alarm) then
@@ -3899,16 +3926,30 @@ contains
                 call shr_cal_ymds2rday_offset(etime=etime_curr, &
                      rdays_offset = tbnds1_offset, &
                      years_offset = -1)
-                do eli = 1,num_inst_lnd
-                   inst_suffix = component_get_suffix(lnd(eli))
-                   ! Use yr_offset=-1 so the file with fields from year 1 has time stamp
-                   ! 0001-01-01 rather than 0002-01-01, etc.
-                   call seq_hist_writeaux(infodata, EClock_d, lnd(eli), flow='c2x', &
-                        aname='l2x1yr_glc',dname='doml',inst_suffix=trim(inst_suffix),  &
-                        nx=lnd_nx, ny=lnd_ny, nt=1, write_now=.true., &
-                        tbnds1_offset = tbnds1_offset, yr_offset=-1, &
-                        av_to_write=prep_glc_get_l2gacc_lx_one_instance(eli))
-                enddo
+                if ( do_hist_l2x1yrg ) then
+                   do eli = 1,num_inst_lnd
+                      inst_suffix = component_get_suffix(lnd(eli))
+                      ! Use yr_offset=-1 so the file with fields from year 1 has time stamp
+                      ! 0001-01-01 rather than 0002-01-01, etc.
+                      call seq_hist_writeaux(infodata, EClock_d, lnd(eli), flow='c2x', &
+                           aname='l2x1yr_glc',dname='doml',inst_suffix=trim(inst_suffix),  &
+                           nx=lnd_nx, ny=lnd_ny, nt=1, write_now=.true., &
+                           tbnds1_offset = tbnds1_offset, yr_offset=-1, &
+                           av_to_write=prep_glc_get_l2gacc_lx_one_instance(eli))
+                   enddo
+                endif
+                if ( do_hist_o2x1yrg .and. ocn_c2_glc) then
+                   do eoi = 1,num_inst_ocn
+                      inst_suffix = component_get_suffix(ocn(eoi))
+                      ! Use yr_offset=-1 so the file with fields from year 1 has time stamp
+                      ! 0001-01-01 rather than 0002-01-01, etc.
+                      call seq_hist_writeaux(infodata, EClock_d, ocn(eoi), flow='c2x', &
+                           aname='o2x1yr_glc',dname='domo',inst_suffix=trim(inst_suffix),  &
+                           nx=ocn_nx, ny=ocn_ny, nt=1, write_now=.true., &
+                           tbnds1_offset = tbnds1_offset, yr_offset=-1, &
+                           av_to_write=prep_glc_get_o2gacc_ox_one_instance(eoi))
+                   enddo
+                endif
              endif
           endif
 
