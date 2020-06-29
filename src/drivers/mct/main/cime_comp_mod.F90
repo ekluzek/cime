@@ -1515,6 +1515,12 @@ contains
        do_histavg = .false.
     endif
 
+    if ( ocn_c2_glc .and. &
+       (trim(cpl_seq_option) /= 'CESM1_ORIG_TIGHT' .and. &
+        trim(cpl_seq_option) /= 'CESM1_MOD_TIGHT')   ) then
+       write(logunit,*) 'cpl_seq_option = ', cpl_seq_option, ' ocn_c2_glc = ', ocn_c2_glc
+       call shr_sys_abort('when ocn_c2_glc is on, CPL_SEQ_OPTION MUST be one of the TIGHT options')
+    end if
     if (do_hist_o2x1yrg .and. (.not. ocn_c2_glc) ) then
        write(logunit,*) 'do_hist_o2x1yrg = ', do_hist_o2x1yrg, ' ocn_c2_glc = ', ocn_c2_glc
        call shr_sys_abort('do_hist_o2x1yrg can only be set to true if ocn_c2_glc is also on')
@@ -2165,6 +2171,7 @@ contains
     real(r8)           :: tbnds1_offset         ! Time offset for call to seq_hist_writeaux
     logical            :: lnd2glc_averaged_now  ! Whether lnd2glc averages were taken this timestep
     logical            :: ocn2glc_averaged_now  ! Whether ocn2glc averages were taken this timestep
+    logical            :: ocn2glc_average_ran   ! Where the average already ran or not
 
 101 format( A, i10.8, i8, 12A, A, F8.2, A, F8.2 )
 102 format( A, i10.8, i8, A, 8L3 )
@@ -2814,6 +2821,7 @@ contains
 
              ! Accumulate glc inputs
              if (ocn_c2_glc .or. do_hist_o2x1yrg) then
+                ocn2glc_average_ran = .true.
                 call prep_glc_accum_o2g(timer='CPL:ocnpost_acco2g' )
              endif
 
@@ -3714,11 +3722,6 @@ contains
 
              call component_diag(infodata, ocn, flow='c2x', comment= 'recv ocn', &
                   info_debug=info_debug, timer_diag='CPL:ocnpost_diagav')
-
-             ! Accumulate glc inputs
-             if (ocn_c2_glc) then
-                call prep_glc_accum_o2g(timer='CPL:ocnpost_acco2g' )
-             endif
 
              if (drv_threading) call seq_comm_setnthreads(nthreads_GLOID)
              call t_drvstopf  ('CPL:OCNPOST',cplrun=.true.)
