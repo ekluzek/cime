@@ -144,6 +144,13 @@
       <grid name="lnd">360x720cru</grid>
     </model_grid>
 
+    <model_grid alias="hcru_hcru_mt13" compset="DATM.+CLM">
+      <grid name="atm">360x720</grid>
+      <grid name="lnd">360x720</grid>
+      <grid name="ocnice">tx0.1v3</grid>
+      <mask>tx0.1v3</mask>
+    </model_grid>
+
     <!-- eulerian grids -->
 
     <model_grid alias="T31_g37">
