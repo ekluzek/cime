@@ -221,6 +221,9 @@ def _archive_history_files(archive, archive_entry,
     if compname == 'clm':
         compname = r'clm2?'
 
+    if compname == 'slim':
+        compname = r'slim?'
+
     if compname == 'nemo':
         archive_rblddir = os.path.join(dout_s_root, compclass, 'rebuild')
         if not os.path.exists(archive_rblddir):
