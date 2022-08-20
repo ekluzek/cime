@@ -19,7 +19,7 @@ def _get_batch_job_id_for_syslog(case):
     try:
         if mach in ['titan']:
             return os.environ["PBS_JOBID"]
-        elif mach in ['anvil', 'edison', 'cori-haswell', 'cori-knl']:
+        elif mach in ['anvil', 'compy', 'cori-haswell', 'cori-knl']:
             return os.environ["SLURM_JOB_ID"]
         elif mach in ['mira', 'theta']:
             return os.environ["COBALT_JOBID"]
@@ -169,7 +169,7 @@ def _save_prerun_timing_e3sm(case, lid):
                 filename = "%s.%s" % (filename, lid)
                 run_cmd_no_fail(cmd, arg_stdout=filename, from_dir=full_timing_dir)
                 gzip_existing_file(os.path.join(full_timing_dir, filename))
-        elif mach in ["edison", "cori-haswell", "cori-knl"]:
+        elif mach in ["cori-haswell", "cori-knl"]:
             for cmd, filename in [("sinfo -a -l", "sinfol"), ("sqs -f %s" % job_id, "sqsf_jobid"),
                                   # ("sqs -f", "sqsf"),
                                   ("squeue -o '%.10i %.15P %.20j %.10u %.7a %.2t %.6D %.8C %.10M %.10l %.20S %.20V'", "squeuef"),
@@ -186,7 +186,7 @@ def _save_prerun_timing_e3sm(case, lid):
                 full_cmd = cmd + " " + filename
                 run_cmd_no_fail(full_cmd + "." + lid, from_dir=full_timing_dir)
                 gzip_existing_file(os.path.join(full_timing_dir, filename + "." + lid))
-        elif mach == "anvil":
+        elif mach in ["anvil", "compy"]:
             for cmd, filename in [("sinfo -l", "sinfol"), 
                                   ("squeue -o '%all' --job {}".format(job_id), "squeueall_jobid"),
                                   ("squeue -o '%.10i %.10P %.15u %.20a %.2t %.6D %.8C %.12M %.12l %.20S %.20V %j'", "squeuef"),
@@ -360,11 +360,14 @@ def _save_postrun_timing_e3sm(case, lid):
             globs_to_copy.append("%s*OU" % job_id)
         elif mach == "anvil":
             globs_to_copy.append("%s*run*%s" % (case.get_value("CASE"), job_id))
+        elif mach == "compy":
+            globs_to_copy.append("slurm.err")
+            globs_to_copy.append("slurm.out")
         elif mach in ["mira", "theta"]:
             globs_to_copy.append("%s*error" % job_id)
             globs_to_copy.append("%s*output" % job_id)
             globs_to_copy.append("%s*cobaltlog" % job_id)
-        elif mach in ["edison", "cori-haswell", "cori-knl"]:
+        elif mach in ["cori-haswell", "cori-knl"]:
             globs_to_copy.append("%s*run*%s" % (case.get_value("CASE"), job_id))
         elif mach == "summit":
             globs_to_copy.append("e3sm.stderr.%s" % job_id)
@@ -442,7 +445,7 @@ def save_test_time(baseline_root, test, time_seconds):
     if baseline_root is not None:
         try:
             with SharedArea():
-                the_dir  = os.path.join(baseline_root, _WALLTIME_BASELINE_NAME, test)
+                the_dir = os.path.join(baseline_root, _WALLTIME_BASELINE_NAME, test)
                 if not os.path.exists(the_dir):
                     os.makedirs(the_dir)
 
@@ -453,3 +456,91 @@ def save_test_time(baseline_root, test, time_seconds):
         except Exception:
             # We NEVER want a failure here to kill the run
             logger.warning("Failed to store test time: {}".format(sys.exc_info()[1]))
+
+_SUCCESS_BASELINE_NAME = "success-history"
+_SUCCESS_FILE_NAME     = "last-transitions"
+
+def _read_success_data(baseline_root, test):
+    success_path = os.path.join(baseline_root, _SUCCESS_BASELINE_NAME, test, _SUCCESS_FILE_NAME)
+    if os.path.exists(success_path):
+        with open(success_path, "r") as fd:
+            prev_results_raw = fd.read().strip()
+            prev_results = prev_results_raw.split()
+            expect(len(prev_results) == 2, "Bad success data: '{}'".format(prev_results_raw))
+    else:
+        prev_results = ["None", "None"]
+
+    # Convert "None" to None
+    for idx, item in enumerate(prev_results):
+        if item == "None":
+            prev_results[idx] = None
+
+    return success_path, prev_results
+
+def _is_test_working(prev_results, src_root, testing=False):
+    # If there is no history of success, prev run could not have succeeded and vice versa for failures
+    if prev_results[0] is None:
+        return False
+    elif prev_results[1] is None:
+        return True
+    else:
+        if not testing:
+            stat, out, err = run_cmd("git merge-base --is-ancestor {}".format(" ".join(prev_results)), from_dir=src_root)
+            expect(stat in [0, 1], "Unexpected status from ancestor check:\n{}\n{}".format(out, err))
+        else:
+            # Hack for testing
+            stat = 0 if prev_results[0] < prev_results[1] else 1
+
+        # stat == 0 tells us that pass is older than fail, so we must have failed, otherwise we passed
+        return stat != 0
+
+def get_test_success(baseline_root, src_root, test, testing=False):
+    """
+    Returns (was prev run success, commit when test last passed, commit when test last transitioned from pass to fail)
+
+    Unknown history is expressed as None
+    """
+    if baseline_root is not None:
+        try:
+            prev_results = _read_success_data(baseline_root, test)[1]
+            prev_success = _is_test_working(prev_results, src_root, testing=testing)
+            return prev_success, prev_results[0], prev_results[1]
+
+        except Exception:
+            # We NEVER want a failure here to kill the run
+            logger.warning("Failed to read test success: {}".format(sys.exc_info()[1]))
+
+    return False, None, None
+
+def save_test_success(baseline_root, src_root, test, succeeded, force_commit_test=None):
+    """
+    Update success data accordingly based on succeeded flag
+    """
+    if baseline_root is not None:
+        try:
+            with SharedArea():
+                success_path, prev_results = _read_success_data(baseline_root, test)
+
+                the_dir = os.path.dirname(success_path)
+                if not os.path.exists(the_dir):
+                    os.makedirs(the_dir)
+
+                prev_succeeded = _is_test_working(prev_results, src_root, testing=(force_commit_test is not None))
+
+                # if no transition occurred then no update is needed
+                if succeeded or succeeded != prev_succeeded or (prev_results[0] is None and succeeded) or (prev_results[1] is None and not succeeded):
+
+                    new_results = list(prev_results)
+                    my_commit = force_commit_test if force_commit_test else get_current_commit(repo=src_root)
+                    if succeeded:
+                        new_results[0] = my_commit # we passed
+                    else:
+                        new_results[1] = my_commit # we transitioned to a failing state
+
+                    str_results = ["None" if item is None else item for item in new_results]
+                    with open(success_path, "w") as fd:
+                        fd.write("{}\n".format(" ".join(str_results)))
+
+        except Exception:
+            # We NEVER want a failure here to kill the run
+            logger.warning("Failed to store test success: {}".format(sys.exc_info()[1]))
