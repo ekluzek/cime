@@ -443,11 +443,11 @@ This allows using a different mpirun command to launch unit tests
       </modules>
       <modules compiler="intel" mpilib="mpi-serial" DEBUG="TRUE">
         <command name="use">/glade/work/himanshu/PROGS/modulefiles/esmfpkgs/intel/19.1.1</command>
-        <command name="load">esmf-8.0.1-ncdfio-mpiuni-g</command>
+        <command name="load">esmf-8.0.1-ncdfio-uni-g</command>
       </modules>
       <modules compiler="intel" mpilib="mpi-serial" DEBUG="FALSE">
         <command name="use">/glade/work/himanshu/PROGS/modulefiles/esmfpkgs/intel/19.1.1</command>
-        <command name="load">esmf-8.0.1-ncdfio-mpiuni-O</command>
+        <command name="load">esmf-8.0.1-ncdfio-uni-O</command>
       </modules>
       <modules compiler="gnu" mpilib="!mpi-serial" DEBUG="TRUE">
         <command name="use">/glade/work/himanshu/PROGS/modulefiles/esmfpkgs/gnu/9.1.0</command>
@@ -464,9 +464,9 @@ This allows using a different mpirun command to launch unit tests
 	<command name="load">pnetcdf/1.12.1</command>
       </modules>
       <modules mpilib="mpt" compiler="intel">
-	<command name="load">mpt/2.22</command>
+	<command name="load">mpt/2.23</command>
 	<!-- known failure in parallel netcdf with mpt, use serial -->
-	<command name="load">netcdf/4.7.3</command>
+	<command name="load">netcdf/4.7.4</command>
 	<command name="load">pnetcdf/1.12.1</command>
       </modules>
       <modules mpilib="mpt" compiler="pgi">
@@ -489,7 +489,7 @@ This allows using a different mpirun command to launch unit tests
 	<command name="load">netcdf/4.7.1</command>
       </modules>
       <modules compiler="intel" mpilib="mpi-serial">
-	<command name="load">netcdf/4.7.3</command>
+	<command name="load">netcdf/4.7.4</command>
       </modules>
       <modules compiler="pgi" mpilib="mpi-serial">
 	<command name="load">netcdf/4.7.1</command>
