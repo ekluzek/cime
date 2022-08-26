@@ -37,7 +37,7 @@ contains
     !-------------------------------------------------------------------------
     use shr_mpi_mod, only : shr_mpi_bcast
     use shr_nl_mod   , only : shr_nl_find_group_name
-    use ESMF, only : ESMF_VM, ESMF_VMGetCurrent, ESMF_VMGet, ESMF_VMBroadcast
+    use ESMF, only : ESMF_VM, ESMF_VMGetCurrent, ESMF_VMGet
 
     ! input/output variables
     character(len=*), intent(in)  :: nlfilename
@@ -47,7 +47,7 @@ contains
     ! local variables
     type(ESMF_VM) :: vm
     integer :: localPet
-    integer :: mpicomm, iostat, fileunit
+    integer :: mpicomm, iostat, fileunit, rc
     logical :: exists, fan_nh3_to_atm
     character(*),parameter :: subname = '(shr_fan_reanl) '
     !------------------------------------------------------------------
