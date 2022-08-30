@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Encapsulate the importing of python utils and logging setup, things
 that every script should do.
