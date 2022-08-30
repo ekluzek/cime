@@ -74,6 +74,9 @@ class FakeCase(object):
         expect(attrib in self._vals, "FakeCase does not support getting value of '%s'" % attrib)
         return self._vals[attrib]
 
+    def set_value(self, attrib, value):
+       self._vals[attrib] = value
+
 def _generate_env_mach_specific(output_dir, machobj, compiler, mpilib, debug,
                                 sysos, unit_testing):
     """
