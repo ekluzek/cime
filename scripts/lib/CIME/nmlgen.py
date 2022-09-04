@@ -24,7 +24,7 @@ _var_ref_re = re.compile(r"\$(\{)?(?P<name>\w+)(?(1)\})")
 
 _ymd_re = re.compile(r"%(?P<digits>[1-9][0-9]*)?y(?P<month>m(?P<day>d)?)?")
 
-_stream_file_template = """<?xml version="1.0"?>
+_stream_mct_file_template = """<?xml version="1.0"?>
 <file id="stream" version="1.0">
 <dataSource>
    GENERIC
@@ -270,7 +270,8 @@ class NamelistGenerator(object):
             while match:
                 env_val = self._case.get_value(match.group('name'))
                 expect(env_val is not None,
-                       "Namelist default for variable {} refers to unknown XML variable {}.".format(name, match.group('name')))
+                       "Namelist default for variable {} refers to unknown XML variable {}.".
+                       format(name, match.group('name')))
                 scalar = scalar.replace(match.group(0), str(env_val), 1)
                 match = _var_ref_re.search(scalar)
             default[i] = scalar
@@ -416,6 +417,16 @@ class NamelistGenerator(object):
                     new_lines.append(new_line)
         return "\n".join(new_lines)
 
+    @staticmethod
+    def _add_xml_delimiter(list_to_deliminate, delimiter):
+        expect(delimiter and not " " in delimiter, "Missing or badly formed delimiter")
+        pred = "<{}>".format(delimiter)
+        postd = "</{}>".format(delimiter)
+        for n,_ in enumerate(list_to_deliminate):
+            list_to_deliminate[n] = pred + list_to_deliminate[n].strip() + postd
+        return "\n      ".join(list_to_deliminate)
+
+
     def create_stream_file_and_update_shr_strdata_nml(self, config, caseroot, #pylint:disable=too-many-locals
                            stream, stream_path, data_list_path):
         """Write the pseudo-XML file corresponding to a given stream.
@@ -474,7 +485,7 @@ class NamelistGenerator(object):
                 domain_filepath = data_filepath
                 domain_filenames = data_filenames.splitlines()[0]
 
-            stream_file_text = _stream_file_template.format(
+            stream_file_text = _stream_mct_file_template.format(
                 domain_varnames=domain_varnames,
                 domain_filepath=domain_filepath,
                 domain_filenames=domain_filenames,
@@ -594,7 +605,7 @@ class NamelistGenerator(object):
                     # NOTE - these are hard-coded here and a better way is to make these extensible
                     if file_path == 'UNSET' or file_path == 'idmap' or file_path == 'idmap_ignore' or file_path == 'unset':
                         continue
-                    if file_path == 'null':
+                    if file_path in ('null','create_mesh'):
                         continue
                     file_path = self.set_abs_file_path(file_path)
                     if not os.path.exists(file_path):
@@ -717,9 +728,8 @@ class NamelistGenerator(object):
         """ Write the nuopc config file"""
         self._definition.validate(self._namelist)
         groups = self._namelist.get_group_names()
-        # write the config file 
+        # write the config file
         self._namelist.write_nuopc(filename, groups=groups, sorted_groups=False)
-
         # append to input_data_list file
         if data_list_path is not None:
             self._write_input_files(data_list_path)

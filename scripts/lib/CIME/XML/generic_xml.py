@@ -65,9 +65,9 @@ class GenericXML(object):
         else:
             # if file does not exist create a root xml element
             # and set it's id to file
-            expect(not self.read_only, "Makes no sense to have empty read-only file")
-            logger.debug("File {} does not exists.".format(infile))
-            expect("$" not in infile,"File path not fully resolved {}".format(infile))
+            expect(not self.read_only, "Makes no sense to have empty read-only file: {}".format(infile))
+            logger.debug("File {} does not exist.".format(infile))
+            expect("$" not in infile,"File path not fully resolved: {}".format(infile))
 
             root = _Element(ET.Element("xml"))
 
@@ -90,8 +90,8 @@ class GenericXML(object):
             timestamp_file  = os.path.getmtime(infile)
             if timestamp_file == timestamp_cache:
                 logger.debug("read (cached): {}".format(infile))
-                expect(self.read_only or not self.filename or not self.needsrewrite, "Reading into object marked for rewrite, file {}"
-                       .format(self.filename))
+                expect(self.read_only or not self.filename or not self.needsrewrite,
+                       "Reading into object marked for rewrite, file {}".format(self.filename))
                 self.tree, self.root, _ = self._FILEMAP[infile]
                 cached_read = True
 
@@ -109,7 +109,8 @@ class GenericXML(object):
             self._FILEMAP[infile] = self.CacheEntry(self.tree, self.root, os.path.getmtime(infile))
 
     def read_fd(self, fd):
-        expect(self.read_only or not self.filename or not self.needsrewrite, "Reading into object marked for rewrite, file {}"               .format(self.filename))
+        expect(self.read_only or not self.filename or not self.needsrewrite,
+               "Reading into object marked for rewrite, file {}".format(self.filename))
         read_only = self.read_only
         if self.tree:
             addroot = _Element(ET.parse(fd).getroot())
@@ -254,7 +255,7 @@ class GenericXML(object):
         """
         This is the critical function, its interface and performance are crucial.
 
-        You can specify attributes={key:None} if you want to select chilren
+        You can specify attributes={key:None} if you want to select children
         with the key attribute but you don't care what its value is.
         """
         root = root if root is not None else self.root
@@ -286,12 +287,20 @@ class GenericXML(object):
         return children
 
     def get_child(self, name=None, attributes=None, root=None, err_msg=None):
-        children = self.get_children(root=root, name=name, attributes=attributes)
-        expect(len(children) == 1, err_msg if err_msg else "Expected one child, found {} with name '{}' and attribs '{}' in file {}".format(len(children), name, attributes, self.filename))
-        return children[0]
+        child = self.get_optional_child(root=root, name=name, attributes=attributes, err_msg=err_msg)
+        expect(child, err_msg if err_msg else "Expected one child, found None with name '{}' and attribs '{}' in file {}".format(name, attributes, self.filename))
+        return child
 
     def get_optional_child(self, name=None, attributes=None, root=None, err_msg=None):
         children = self.get_children(root=root, name=name, attributes=attributes)
+        if len(children) > 1:
+            # see if we can reduce to 1 based on attribute counts
+            if not attributes:
+                children = [c for c in children if not c.xml_element.attrib]
+            else:
+                attlen = len(attributes)
+                children = [c for c in children if len(c.xml_element.attrib) == attlen]
+
         expect(len(children) <= 1, err_msg if err_msg else "Multiple matches for name '{}' and attribs '{}' in file {}".format(name, attributes, self.filename))
         return children[0] if children else None
 
@@ -321,20 +330,29 @@ class GenericXML(object):
         return version
 
     def check_timestamp(self):
+        """
+        Returns True if timestamp matches what is expected
+        """
         timestamp_cache = self._FILEMAP[self.filename].modtime
         if timestamp_cache != 0.0:
             timestamp_file  = os.path.getmtime(self.filename)
-            expect(timestamp_file == timestamp_cache,
-                   "File {} appears to have changed without a corresponding invalidation, modtimes {:0.2f} != {:0.2f}".format(self.filename, timestamp_cache, timestamp_file))
+            return timestamp_file == timestamp_cache
+        else:
+            return True
+
+    def validate_timestamp(self):
+        timestamp_ok = self.check_timestamp()
+        expect(timestamp_ok,
+               "File {} appears to have changed without a corresponding invalidation.".format(self.filename))
 
     def write(self, outfile=None, force_write=False):
         """
         Write an xml file from data in self
         """
-        #self.check_timestamp()
-
         if not (self.needsrewrite or force_write):
             return
+
+        self.validate_timestamp()
 
         if outfile is None:
             outfile = self.filename

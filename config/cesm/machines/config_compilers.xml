@@ -653,6 +653,23 @@ using a fortran linker.
   </SLIBS>
 </compiler>
 
+<compiler MACH="casper" COMPILER="pgi">
+  <FFLAGS>
+    <append> -Mnofma -acc -ta=tesla:cc70 -Minfo=accel </append>
+    <append> -I$(EXEROOT)/ocn/obj/FMS </append>
+  </FFLAGS>
+  <CFLAGS>
+    <append> -Mnofma -acc -ta=tesla:cc70 -Minfo=accel </append>
+  </CFLAGS>
+  <LDFLAGS>
+    <append> -acc -ta=tesla:cc70 -Minfo=accel </append>
+  </LDFLAGS>
+  <SLIBS>
+    <append> -llapack -lblas -ldl </append>
+    <append MPILIB="mpi-serial"> -ldl </append>
+  </SLIBS>
+</compiler>
+
 <compiler MACH="cheyenne">
   <CPPDEFS>
     <!-- these flags enable nano timers -->
@@ -977,6 +994,12 @@ using a fortran linker.
 <compiler MACH="izumi" COMPILER="intel">
   <PFUNIT_PATH MPILIB="mpi-serial" compile_threaded="FALSE">/fs/cgd/csm/tools/pFUnit/pFUnit3.3.3_izumi_Intel19.0.1_noMPI_noOpenMP</PFUNIT_PATH>
 </compiler>
+
+<compiler MACH="izumi" COMPILER="pgi">
+  <CXX_LINKER>FORTRAN</CXX_LINKER>
+  <SUPPORTS_CXX>TRUE</SUPPORTS_CXX>
+</compiler>
+
 
 <compiler MACH="hobart" COMPILER="intel">
   <CFLAGS>

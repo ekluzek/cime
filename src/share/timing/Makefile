@@ -7,7 +7,10 @@ VPATH := $(GPTL_DIR)
 ifndef MOD_SUFFIX
    MOD_SUFFIX := mod
 endif
-
+ifeq ($(strip $(SMP)),TRUE)
+  CPPDEFS +=  -DTHREADED_OMP
+  compile_threaded=TRUE
+endif
 
 ifeq ($(strip $(MACFILE)),)
    MACFILE  := Macros.make
@@ -22,7 +25,15 @@ ifdef COMP_INTERFACE
   UPVAR := $(shell echo $(COMP_INTERFACE) | tr a-z A-Z)
   CPPDEFS+=-D$(UPVAR)_INTERFACE
   ifeq ("$(COMP_INTERFACE)", "nuopc")
-    -include $(ESMFMKFILE)
+    # Set esmf.mk location with ESMF_LIBDIR having precedence over ESMFMKFILE
+    CIME_ESMFMKFILE := undefined_ESMFMKFILE
+    ifdef ESMFMKFILE
+       CIME_ESMFMKFILE := $(ESMFMKFILE)
+    endif
+    ifdef ESMF_LIBDIR
+       CIME_ESMFMKFILE := $(ESMF_LIBDIR)/esmf.mk
+    endif
+    -include $(CIME_ESMFMKFILE)
     FFLAGS += $(ESMF_F90COMPILEPATHS)
   endif
 endif

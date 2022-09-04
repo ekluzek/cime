@@ -147,7 +147,8 @@ class TestScheduler(object):
         self._machobj = Machines(machine=machine_name)
 
         if get_model() == "e3sm":
-            self._model_build_cost = int((self._machobj.get_value("GMAKE_J") * 2) / 3) + 1
+            # Current build system is unlikely to be able to productively use more than 16 cores
+            self._model_build_cost = min(16, int((self._machobj.get_value("GMAKE_J") * 2) / 3) + 1)
         else:
             self._model_build_cost = 4
 
@@ -202,6 +203,8 @@ class TestScheduler(object):
         else:
             self._parallel_jobs = parallel_jobs
 
+        logger.info("create_test will do up to {} tasks simultaneously".format(self._parallel_jobs))
+
         self._baseline_cmp_name = baseline_cmp_name # Implies comparison should be done if not None
         self._baseline_gen_name = baseline_gen_name # Implies generation should be done if not None
 
@@ -248,6 +251,8 @@ class TestScheduler(object):
             self._proc_pool = int(pes * 1.25)
         else:
             self._proc_pool = int(proc_pool)
+
+        logger.info("create_test will use up to {} cores simultaneously".format(self._proc_pool))
 
         self._procs_avail = self._proc_pool
 
@@ -444,6 +449,7 @@ class TestScheduler(object):
         _, case_opts, grid, compset,\
             machine, compiler, test_mods = parse_test_name(test)
 
+        os.environ["FROM_CREATE_TEST"] = "True"
         create_newcase_cmd = "{} --case {} --res {} --compset {}"\
                              " --test".format(os.path.join(self._cime_root, "scripts", "create_newcase"),
                                               test_dir, grid, compset)
@@ -550,7 +556,7 @@ class TestScheduler(object):
     ###########################################################################
     def _xml_phase(self, test):
     ###########################################################################
-        test_case = parse_test_name(test)[0]
+        test_case,case_opts,_,_,_,compiler,_ = parse_test_name(test)
 
         # Create, fill and write an envtest object
         test_dir = self._get_test_dir(test)
@@ -559,8 +565,19 @@ class TestScheduler(object):
         # Determine list of component classes that this coupler/driver knows how
         # to deal with. This list follows the same order as compset longnames follow.
         files = Files(comp_interface=self._cime_driver)
-        drv_config_file = files.get_value("CONFIG_CPL_FILE")
+        cmeps_driver = os.environ.get("UFS_DRIVER")
+        attribute = None
+        if cmeps_driver:
+            attribute = {"component":cmeps_driver}
+
+        drv_config_file = files.get_value("CONFIG_CPL_FILE", attribute=attribute)
+
+        if self._cime_driver == "nuopc" and not os.path.exists(drv_config_file):
+            drv_config_file = files.get_value("CONFIG_CPL_FILE", {"component":"cpl"})
+        expect(os.path.exists(drv_config_file),"File {} not found, cime driver {}".format(drv_config_file, self._cime_driver))
+
         drv_comp = Component(drv_config_file, "CPL")
+
         envtest.add_elements_by_group(files, {}, "env_test.xml")
         envtest.add_elements_by_group(drv_comp, {}, "env_test.xml")
         envtest.set_value("TESTCASE", test_case)
@@ -600,8 +617,9 @@ class TestScheduler(object):
         config_test = Tests()
         testnode = config_test.get_test_node(test_case)
         envtest.add_test(testnode)
-        # Determine the test_case from the test name
-        test_case, case_opts = parse_test_name(test)[:2]
+
+        if compiler == 'nag':
+            envtest.set_value("FORCE_BUILD_SMP","FALSE")
 
         # Determine case_opts from the test_case
         if case_opts is not None:

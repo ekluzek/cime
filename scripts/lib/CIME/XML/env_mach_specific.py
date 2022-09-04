@@ -15,14 +15,20 @@ logger = logging.getLogger(__name__)
 class EnvMachSpecific(EnvBase):
     # pylint: disable=unused-argument
     def __init__(self, caseroot=None, infile="env_mach_specific.xml",
-                 components=None, unit_testing=False, read_only=False):
+                 components=None, unit_testing=False, read_only=False,
+                 standalone_configure=False):
         """
         initialize an object interface to file env_mach_specific.xml in the case directory
+
+        Notes on some arguments:
+        standalone_configure: logical - whether this is being called from the standalone
+            configure utility, outside of a case
         """
         schema = os.path.join(get_cime_root(), "config", "xml_schemas", "env_mach_specific.xsd")
         EnvBase.__init__(self, caseroot, infile, schema=schema, read_only=read_only)
         self._allowed_mpi_attributes = ("compiler", "mpilib", "threaded", "unit_testing", "queue")
         self._unit_testing = unit_testing
+        self._standalone_configure = standalone_configure
 
     def populate(self, machobj):
         """Add entries to the file using information from a Machines object."""
@@ -144,7 +150,14 @@ class EnvMachSpecific(EnvBase):
             f.write(self.list_modules())
         run_cmd_no_fail("echo -e '\n' && env", arg_stdout=filename)
 
-    def make_env_mach_specific_file(self, shell, case):
+    def make_env_mach_specific_file(self, shell, case, output_dir=''):
+        """Writes .env_mach_specific.sh or .env_mach_specific.csh
+
+        Args:
+        shell: string - 'sh' or 'csh'
+        case: case object
+        output_dir: string - path to output directory (if empty string, uses current directory)
+        """
         module_system = self.get_module_system_type()
         sh_init_cmd = self.get_module_system_init_path(shell)
         sh_mod_cmd = self.get_module_system_cmd_path(shell)
@@ -161,8 +174,12 @@ class EnvMachSpecific(EnvBase):
         if "SOFTENV_LOAD" in os.environ:
             lines.append("source $SOFTENV_LOAD")
 
-        modules_to_load = self._get_modules_for_case(case)
-        envs_to_set = self._get_envs_for_case(case)
+        if self._unit_testing or self._standalone_configure:
+            job = None
+        else:
+            job = case.get_primary_job()
+        modules_to_load = self._get_modules_for_case(case, job=job)
+        envs_to_set = self._get_envs_for_case(case, job=job)
         filename = ".env_mach_specific.{}".format(shell)
         if modules_to_load is not None:
             if module_system == "module":
@@ -174,13 +191,20 @@ class EnvMachSpecific(EnvBase):
         if envs_to_set is not None:
             for env_name, env_value in envs_to_set:
                 if shell == "sh":
-                    lines.append("export {}={}".format(env_name, env_value))
+                    if env_name:
+                        lines.append("export {}={}".format(env_name, env_value))
+                    else:
+                        lines.append("source {}".format(env_value))
+
                 elif shell == "csh":
-                    lines.append("setenv {} {}".format(env_name, env_value))
+                    if env_name:
+                        lines.append("setenv {} {}".format(env_name, env_value))
+                    else:
+                        lines.append("echo \"This case includes a shell source file {} which cannot be used from csh type shells\"".format(env_value))
                 else:
                     expect(False, "Unknown shell type: '{}'".format(shell))
 
-        with open(filename, "w") as fd:
+        with open(os.path.join(output_dir, filename), "w") as fd:
             fd.write("\n".join(lines))
 
     # Private API
@@ -192,8 +216,13 @@ class EnvMachSpecific(EnvBase):
                 del os.environ[env_name]
                 logger_func("Unsetting Environment {}".format(env_name))
             elif env_value is not None:
-                os.environ[env_name] = env_value
-                logger_func("Setting Environment {}={}".format(env_name, env_value))
+                if env_name is None:
+                    cmd = "source "+ env_value
+                    self._source_sh_file(cmd, verbose=True)
+                else:
+                    print("Setting Environment {}={}".format(env_name, env_value))
+                    logger_func("Setting Environment {}={}".format(env_name, env_value))
+                    os.environ[env_name] = env_value
 
     def _compute_module_actions(self, module_nodes, case, job=None):
         return self._compute_actions(module_nodes, "command", case, job=job)
@@ -239,7 +268,7 @@ class EnvMachSpecific(EnvBase):
                     expect(val is not None, "Cannot match attrib '%s', case has no value for it" % attrib.upper())
                     if not self._match(val, attribs[attrib]):
                         return False
-            elif attrib == "name":
+            elif attrib in ("name", "source"):
                 pass
             else:
                 val = case.get_value(attrib.upper())
@@ -315,7 +344,6 @@ class EnvMachSpecific(EnvBase):
     def _load_modules_generic(self, modules_to_load, verbose=False):
         sh_init_cmd = self.get_module_system_init_path("sh")
         sh_mod_cmd = self.get_module_system_cmd_path("sh")
-        logger_func = logger.warning if verbose else logger.debug
 
         # Purpose is for environment management system that does not have
         # a python interface and therefore can only determine what they
@@ -332,8 +360,12 @@ class EnvMachSpecific(EnvBase):
         for action,argument in modules_to_load:
             cmd += " && {} {} {}".format(sh_mod_cmd, action, "" if argument is None else argument)
 
+        self._source_sh_file(cmd, verbose=verbose)
+
+    def _source_sh_file(self, cmd, verbose=False):
         # Use null terminated lines to give us something more definitive to split on.
         # Env vars can contain newlines, so splitting on newlines can be ambiguous
+        logger_func = logger.warning if verbose else logger.debug
         cmd += " && env -0"
         logger_func("cmd: {}".format(cmd))
         output = run_cmd_no_fail(cmd)

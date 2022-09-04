@@ -11,7 +11,7 @@ from CIME.provenance import save_test_time, get_test_success
 from CIME.locked_files import LOCKED_DIR, lock_file, is_locked
 import CIME.build as build
 
-import glob, gzip, time, traceback, six
+import glob, gzip, time, traceback, six, shutil
 
 logger = logging.getLogger(__name__)
 
@@ -145,21 +145,37 @@ class SystemTestsCommon(object):
         self._skip_pnl = skip_pnl
         try:
             self._resetup_case(RUN_PHASE)
+            do_baseline_ops = True
             with self._test_status:
                 self._test_status.set_status(RUN_PHASE, TEST_PEND_STATUS)
 
-            self.run_phase()
+            # We do not want to do multiple repetitions of baseline operations for
+            # multi-submit tests. We just want to do them upon the final submission.
+            # Other submissions will need to mark those phases as PEND to ensure wait_for_tests
+            # waits for them.
+            if self._case.get_value("BATCH_SYSTEM") != "none":
+                do_baseline_ops = self._case.get_value("RESUBMIT") == 0
 
+            self.run_phase()
             if self._case.get_value("GENERATE_BASELINE"):
-                self._phase_modifying_call(GENERATE_PHASE, self._generate_baseline)
+                if do_baseline_ops:
+                    self._phase_modifying_call(GENERATE_PHASE, self._generate_baseline)
+                else:
+                    with self._test_status:
+                        self._test_status.set_status(GENERATE_PHASE, TEST_PEND_STATUS)
 
             if self._case.get_value("COMPARE_BASELINE"):
-                self._phase_modifying_call(BASELINE_PHASE,   self._compare_baseline)
-                self._phase_modifying_call(MEMCOMP_PHASE,    self._compare_memory)
-                self._phase_modifying_call(THROUGHPUT_PHASE, self._compare_throughput)
+                if do_baseline_ops:
+                    self._phase_modifying_call(BASELINE_PHASE,   self._compare_baseline)
+                    self._phase_modifying_call(MEMCOMP_PHASE,    self._compare_memory)
+                    self._phase_modifying_call(THROUGHPUT_PHASE, self._compare_throughput)
+                else:
+                    with self._test_status:
+                        self._test_status.set_status(BASELINE_PHASE,   TEST_PEND_STATUS)
+                        self._test_status.set_status(MEMCOMP_PHASE,    TEST_PEND_STATUS)
+                        self._test_status.set_status(THROUGHPUT_PHASE, TEST_PEND_STATUS)
 
-            self._phase_modifying_call(MEMLEAK_PHASE, self._check_for_memleak)
-
+            self._phase_modifying_call(MEMLEAK_PHASE,   self._check_for_memleak)
             self._phase_modifying_call(STARCHIVE_PHASE, self._st_archive_case_test)
 
         except BaseException as e: # We want KeyboardInterrupts to generate FAIL status
@@ -190,7 +206,7 @@ class SystemTestsCommon(object):
                 # If overall things did not pass, offer the user some insight into what might have broken things
                 overall_status = self._test_status.get_overall_test_status(ignore_namelists=True)
                 if overall_status != TEST_PASS_STATUS:
-                    srcroot = self._case.get_value("CIMEROOT")
+                    srcroot = self._case.get_value("SRCROOT")
                     worked_before, last_pass, last_fail_transition = \
                         get_test_success(baseline_root, srcroot, self._casebaseid)
 
@@ -561,14 +577,22 @@ class FakeTest(SystemTestsCommon):
     have names beginnig with "TEST" this is so that the find_system_test
     in utils.py will work with these classes.
     """
-    def _set_script(self, script):
+    def _set_script(self, script, requires_exe=False):
         self._script = script # pylint: disable=attribute-defined-outside-init
+        self._requires_exe = requires_exe # pylint: disable=attribute-defined-outside-init
 
     def build_phase(self, sharedlib_only=False, model_only=False):
-        if (not sharedlib_only):
+        if self._requires_exe:
+            super(FakeTest, self).build_phase(sharedlib_only=sharedlib_only, model_only=model_only)
+
+        if not sharedlib_only:
             exeroot = self._case.get_value("EXEROOT")
             cime_model = self._case.get_value("MODEL")
             modelexe = os.path.join(exeroot, "{}.exe".format(cime_model))
+            real_modelexe = modelexe + ".real"
+
+            if self._requires_exe:
+                shutil.move(modelexe, real_modelexe)
 
             with open(modelexe, 'w') as f:
                 f.write("#!/bin/bash\n")
@@ -576,7 +600,8 @@ class FakeTest(SystemTestsCommon):
 
             os.chmod(modelexe, 0o755)
 
-            build.post_build(self._case, [], build_complete=True)
+            if not self._requires_exe:
+                build.post_build(self._case, [], build_complete=True)
 
     def run_indv(self, suffix="base", st_archive=False):
         mpilib = self._case.get_value("MPILIB")
@@ -626,6 +651,9 @@ fi
         self._set_script(script)
         FakeTest.build_phase(self,
                        sharedlib_only=sharedlib_only, model_only=model_only)
+
+class TESTRUNDIFFRESUBMIT(TESTRUNDIFF):
+    pass
 
 class TESTTESTDIFF(FakeTest):
 
@@ -699,6 +727,43 @@ class TESTBUILDFAILEXC(FakeTest):
     def __init__(self, case):
         FakeTest.__init__(self, case)
         raise RuntimeError("Exception from init")
+
+class TESTRUNUSERXMLCHANGE(FakeTest):
+
+    def build_phase(self, sharedlib_only=False, model_only=False):
+        exeroot = self._case.get_value("EXEROOT")
+        caseroot = self._case.get_value("CASEROOT")
+        cime_model = self._case.get_value("MODEL")
+        modelexe = os.path.join(exeroot, "{}.exe".format(cime_model))
+        new_stop_n = self._case.get_value("STOP_N") * 2
+
+        script = \
+"""
+cd {caseroot}
+./xmlchange DOUT_S=TRUE
+./xmlchange DOUT_S=TRUE --file env_test.xml
+./xmlchange RESUBMIT=1
+./xmlchange STOP_N={stopn}
+./xmlchange CONTINUE_RUN=FALSE
+./xmlchange RESUBMIT_SETS_CONTINUE_RUN=FALSE
+cd -
+sleep 5
+{modelexe}.real "$@"
+sleep 5
+
+# Need to remove self in order to avoid infinite loop
+ls $(dirname {modelexe})
+mv {modelexe} {modelexe}.old
+mv {modelexe}.real {modelexe}
+ls $(dirname {modelexe})
+sleep 5
+""".format(caseroot=caseroot, modelexe=modelexe, stopn=str(new_stop_n))
+        self._set_script(script, requires_exe=True)
+        FakeTest.build_phase(self,
+                             sharedlib_only=sharedlib_only, model_only=model_only)
+
+    def run_phase(self):
+        self.run_indv(st_archive=True)
 
 class TESTRUNSLOWPASS(FakeTest):
 

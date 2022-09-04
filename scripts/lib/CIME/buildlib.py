@@ -73,7 +73,6 @@ def build_cime_component_lib(case, compname, libroot, bldroot, use_old=True):
     if get_model() != "e3sm" or use_old:
         safe_copy(os.path.join(confdir, "Filepath"), bldroot)
         safe_copy(os.path.join(confdir, "CCSM_cppdefs"), bldroot)
-
         run_gmake(case, compclass, compname, libroot, bldroot)
 
 ###############################################################################
@@ -97,5 +96,9 @@ def run_gmake(case, compclass, compname, libroot, bldroot, libname="", user_cppd
     if user_cppdefs:
         cmd = cmd + "USER_CPPDEFS='{}'".format(user_cppdefs )
 
-    _, out, _ = run_cmd(cmd, combine_output=True)
+    stat, out, err = run_cmd(cmd, combine_output=True)
     print(out)
+    if stat:
+        logger.info("buildlib stat={} err={}".format(stat,err))
+        os.unlink(complib)
+    return stat

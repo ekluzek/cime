@@ -116,7 +116,7 @@ else ()
   ExternalProject_Add (genf90
     PREFIX ${CMAKE_CURRENT_BINARY_DIR}/genf90
     GIT_REPOSITORY https://github.com/PARALLELIO/genf90
-    GIT_TAG genf90_140121
+    GIT_TAG genf90_200608
     UPDATE_COMMAND ""
     CONFIGURE_COMMAND ""
     BUILD_COMMAND ""
@@ -274,3 +274,15 @@ endif ()
 if (NOT PnetCDF_Fortran_FOUND AND NOT NetCDF_Fortran_FOUND)
   message (FATAL_ERROR "Must have PnetCDF and/or NetCDF Fortran libraries")
 endif ()
+set(FFLAGS ${CMAKE_Fortran_FLAGS} PARENT_SCOPE)
+get_target_property(fppdefs piof COMPILE_DEFINITIONS)
+get_target_property(fincludes piof INCLUDE_DIRECTORIES)
+foreach(x IN LISTS fppdefs)
+  string(APPEND FPPFLAGS " -D${x}")
+endforeach()
+foreach(x IN LISTS fincludes)
+  if (x)
+    string(APPEND FPPFLAGS " -I${x}")
+  endif()
+endforeach()
+set(FPPFLAGS ${FPPFLAGS} PARENT_SCOPE)
