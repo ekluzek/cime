@@ -254,6 +254,20 @@ def get_cime_root(case=None):
     logger.debug( "CIMEROOT is " + cimeroot)
     return cimeroot
 
+def get_src_root():
+    """
+    Return the absolute path to the root of SRCROOT.
+
+    """
+    # This if statement will need to be updated when cesm brings in the new share repos.
+    if get_model() == "cesm":
+        srcroot = os.path.abspath(os.path.join(get_cime_root(),".."))
+    else:
+        srcroot = os.path.abspath(os.path.join(get_cime_root(),".."))
+
+    logger.debug( "SRCROOT is " + srcroot)
+    return srcroot
+
 def get_cime_default_driver():
     driver = os.environ.get("CIME_DRIVER")
     if driver:
@@ -336,7 +350,7 @@ def get_model():
             model = 'cesm'
             with open(os.path.join(srcroot, "Externals.cfg")) as fd:
                 for line in fd:
-                    if re.search('fv3gfs', line):
+                    if re.search('ufs', line):
                         model = 'ufs'
         else:
             model = 'e3sm'
@@ -458,7 +472,7 @@ def run_sub_or_cmd(cmd, cmdargs, subname, subargs, logfile=None, case=None,
 
 def run_cmd(cmd, input_str=None, from_dir=None, verbose=None,
             arg_stdout=_hack, arg_stderr=_hack, env=None,
-            combine_output=False, timeout=None):
+            combine_output=False, timeout=None, executable=None):
     """
     Wrapper around subprocess to make it much more convenient to run shell commands
 
@@ -485,6 +499,7 @@ def run_cmd(cmd, input_str=None, from_dir=None, verbose=None,
         stdin = subprocess.PIPE
     else:
         stdin = None
+
     if timeout:
         with Timeout(timeout):
             proc = subprocess.Popen(cmd,
@@ -493,6 +508,7 @@ def run_cmd(cmd, input_str=None, from_dir=None, verbose=None,
                                     stderr=arg_stderr,
                                     stdin=stdin,
                                     cwd=from_dir,
+                                    executable=executable,
                                     env=env)
 
             output, errput = proc.communicate(input_str)
@@ -503,6 +519,7 @@ def run_cmd(cmd, input_str=None, from_dir=None, verbose=None,
                                 stderr=arg_stderr,
                                 stdin=stdin,
                                 cwd=from_dir,
+                                executable=executable,
                                 env=env)
 
         output, errput = proc.communicate(input_str)
@@ -554,7 +571,7 @@ def run_cmd(cmd, input_str=None, from_dir=None, verbose=None,
 
 def run_cmd_no_fail(cmd, input_str=None, from_dir=None, verbose=None,
                     arg_stdout=_hack, arg_stderr=_hack, env=None,
-                    combine_output=False, timeout=None):
+                    combine_output=False, timeout=None, executable=None):
     """
     Wrapper around subprocess to make it much more convenient to run shell commands.
     Expects command to work. Just returns output string.
@@ -572,7 +589,8 @@ def run_cmd_no_fail(cmd, input_str=None, from_dir=None, verbose=None,
     True
     """
     stat, output, errput = run_cmd(cmd, input_str, from_dir, verbose, arg_stdout,
-                                   arg_stderr, env, combine_output, timeout=timeout)
+                                   arg_stderr, env, combine_output,
+                                   executable=executable, timeout=timeout)
     if stat != 0:
         # If command produced no errput, put output in the exception since we
         # have nothing else to go on.
@@ -861,6 +879,18 @@ def match_any(item, re_list):
             return True
 
     return False
+
+def get_current_submodule_status(recursive=False, repo=None):
+    """
+    Return the sha1s of the current currently checked out commit for each submodule,
+    along with the submodule path and the output of git describe for the SHA-1.
+
+    >>> get_current_submodule_status() is not None
+    True
+    """
+    rc, output, _ = run_cmd("git submodule status {}".format("--recursive" if recursive else ""), from_dir=repo)
+
+    return output if rc == 0 else "unknown"
 
 def safe_copy(src_path, tgt_path, preserve_meta=True):
     """
@@ -1761,18 +1791,38 @@ def verbatim_success_msg(return_val):
 
 CASE_SUCCESS = "success"
 CASE_FAILURE = "error"
-def run_and_log_case_status(func, phase, caseroot='.', custom_success_msg_functor=None):
-    append_case_status(phase, "starting", caseroot=caseroot)
+def run_and_log_case_status(func, phase, caseroot='.',
+                            custom_starting_msg_functor=None,
+                            custom_success_msg_functor=None, 
+                            is_batch=False):
+    starting_msg = None
+
+    if custom_starting_msg_functor is not None:
+        starting_msg = custom_starting_msg_functor()
+
+    # Delay appending "starting" on "case.subsmit" phase when batch system is
+    # present since we don't have the jobid yet
+    if phase != "case.submit" or not is_batch:
+        append_case_status(phase, "starting", msg=starting_msg, caseroot=caseroot)
     rv = None
     try:
         rv = func()
     except BaseException:
+        custom_success_msg = custom_success_msg_functor(rv) if custom_success_msg_functor else None
+        if phase == "case.submit" and is_batch:
+            append_case_status(phase, "starting", msg=custom_success_msg,
+                            caseroot=caseroot)
         e = sys.exc_info()[1]
-        append_case_status(phase, CASE_FAILURE, msg=("\n{}".format(e)), caseroot=caseroot)
+        append_case_status(phase, CASE_FAILURE, msg=("\n{}".format(e)),
+                           caseroot=caseroot)
         raise
     else:
         custom_success_msg = custom_success_msg_functor(rv) if custom_success_msg_functor else None
-        append_case_status(phase, CASE_SUCCESS, msg=custom_success_msg, caseroot=caseroot)
+        if phase == "case.submit" and is_batch:
+            append_case_status(phase, "starting", msg=custom_success_msg,
+                            caseroot=caseroot)
+        append_case_status(phase, CASE_SUCCESS, msg=custom_success_msg, 
+                           caseroot=caseroot)
 
     return rv
 

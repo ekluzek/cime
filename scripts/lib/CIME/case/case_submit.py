@@ -8,7 +8,7 @@ submit, check_case and check_da_settings are members of class Case in file case.
 """
 from six.moves                      import configparser
 from CIME.XML.standard_module_setup import *
-from CIME.utils                     import expect, run_and_log_case_status, verbatim_success_msg, CIMEError
+from CIME.utils                     import expect, run_and_log_case_status, CIMEError
 from CIME.locked_files              import unlock_file, lock_file
 from CIME.test_status               import *
 
@@ -130,7 +130,7 @@ manual edits to these file will be lost!
         unlock_file(os.path.basename(env_batch.filename))
         lock_file(os.path.basename(env_batch.filename))
 
-        case.check_case()
+        case.check_case(skip_pnl=skip_pnl)
         if job == case.get_primary_job():
             case.check_DA_settings()
             if case.get_value("MACH") == "mira":
@@ -195,6 +195,8 @@ def submit(self, job=None, no_batch=False, prereq=None, allow_fail=False, resubm
         if batch_args is None and config.has_option('SubmitOptions', 'batch_args'):
             batch_args = config.get('SubmitOptions', 'batch_args')
 
+    is_batch = self.get_value("BATCH_SYSTEM") is not None
+
     try:
         functor = lambda: _submit(self, job=job, no_batch=no_batch, prereq=prereq,
                                   allow_fail=allow_fail, resubmit=resubmit,
@@ -202,7 +204,8 @@ def submit(self, job=None, no_batch=False, prereq=None, allow_fail=False, resubm
                                   mail_user=mail_user, mail_type=mail_type,
                                   batch_args=batch_args, workflow=workflow)
         run_and_log_case_status(functor, "case.submit", caseroot=caseroot,
-                                custom_success_msg_functor=verbatim_success_msg)
+                                custom_success_msg_functor=lambda x: x.split(":")[-1],
+                                is_batch=is_batch)
     except BaseException: # Want to catch KeyboardInterrupt too
         # If something failed in the batch system, make sure to mark
         # the test as failed if we are running a test.
@@ -212,9 +215,10 @@ def submit(self, job=None, no_batch=False, prereq=None, allow_fail=False, resubm
 
         raise
 
-def check_case(self):
+def check_case(self, skip_pnl=False):
     self.check_lockedfiles()
-    self.create_namelists() # Must be called before check_all_input_data
+    if not skip_pnl:
+        self.create_namelists() # Must be called before check_all_input_data
     logger.info("Checking that inputdata is available as part of case submission")
     self.check_all_input_data()
 
