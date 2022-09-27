@@ -70,6 +70,10 @@ class FakeCase(object):
     def __init__(self, compiler, mpilib, debug):
         self._vals = {"COMPILER":compiler, "MPILIB":mpilib, "DEBUG":debug}
 
+    def get_case_root(self):
+        """Returns the root directory for this case."""
+        return self.get_value("CASEROOT")
+
     def get_value(self, attrib):
         expect(attrib in self._vals, "FakeCase does not support getting value of '%s'" % attrib)
         return self._vals[attrib]
