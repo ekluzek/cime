@@ -181,6 +181,8 @@ class ERI(SystemTestsCommon):
             clone2.set_value("HIST_N", hist_n)
 
         rundir2 = clone2.get_value("RUNDIR")
+        if not os.path.exists(rundir2):
+            os.makedirs(rundir2)
         dout_sr2 = clone2.get_value("DOUT_S_ROOT")
 
         _helper(dout_sr1, refdate_2, refsec_2, rundir2)
