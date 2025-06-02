@@ -7,6 +7,7 @@
   <xs:attribute name="mpilib" type="xs:string"/>
   <xs:attribute name="comp_interface" type="xs:string"/>
   <xs:attribute name="gpu_type" type="xs:string"/>
+  <xs:attribute name="gpu_offload" type="xs:string"/>
   <xs:attribute name="queue" type="xs:string"/>
   <xs:attribute name="DEBUG" type="upperBoolean"/>
   <xs:attribute name="PIO_VERSION" type="xs:integer"/>
@@ -58,6 +59,8 @@
   <xs:element name="MEM_PER_TASK" type="AttrElement"/>
   <xs:element name="MAX_MEM_PER_NODE" type="AttrElement"/>
   <xs:element name="MAX_GPUS_PER_NODE" type="AttrElement"/>
+  <xs:element name="GPU_TYPE" type="AttrElement"/>
+  <xs:element name="GPU_OFFLOAD" type="AttrElement"/>
   <xs:element name="MAX_MPITASKS_PER_NODE" type="AttrElement"/>
   <xs:element name="MAX_CPUTASKS_PER_GPU_NODE" type="AttrElement"/>
   <xs:element name="MPI_GPU_WRAPPER_SCRIPT" type="AttrElement"/>
@@ -199,6 +202,10 @@
         <xs:element ref="MPI_GPU_WRAPPER_SCRIPT" minOccurs="0" maxOccurs="1"/>
         <!-- Optional cost factor per node unit -->
         <xs:element ref="COSTPES_PER_NODE" minOccurs="0" maxOccurs="1"/>
+        <!-- GPU_TYPE: GPU types supported on this machine, comma seperated list -->
+        <xs:element ref="GPU_TYPE" minOccurs="0" maxOccurs="unbounded"/>
+        <!-- GPU_OFFLOAD: GPU offload types supported on this machine, comma seperated list -->
+        <xs:element ref="GPU_OFFLOAD" minOccurs="0" maxOccurs="unbounded"/>
         <!-- PROJECT_REQUIRED: Does this machine require a project to be specified to
              the batch system?  See PROJECT above -->
         <xs:element ref="PROJECT_REQUIRED" minOccurs="0" maxOccurs="1"/>
@@ -281,6 +288,7 @@
       <xs:attribute ref="mpilib"/>
       <xs:attribute ref="comp_interface"/>
       <xs:attribute ref="gpu_type"/>
+      <xs:attribute ref="gpu_offload"/>
     </xs:complexType>
   </xs:element>
   <xs:element name="command">
