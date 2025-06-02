@@ -1,6 +1,7 @@
 """
 functions for building CIME models
 """
+
 import glob, shutil, time, threading, subprocess
 from pathlib import Path
 from CIME.XML.standard_module_setup import *
@@ -63,6 +64,8 @@ _CMD_ARGS_FOR_BUILD = (
     "USE_TRILINOS",
     "USE_ALBANY",
     "USE_PETSC",
+    "USE_FTORCH",
+    "TORCH_DIR",
 )
 
 
@@ -212,13 +215,10 @@ def generate_makefile_macro(case, caseroot):
         fd.write(all_output)
 
 
+# pylint:disable=unused-argument
 def get_standard_makefile_args(case, shared_lib=False):
     make_args = "CIME_MODEL={} ".format(case.get_value("MODEL"))
     make_args += " SMP={} ".format(stringify_bool(case.get_build_threaded()))
-    expect(
-        not (uses_kokkos(case) and not shared_lib),
-        "Kokkos is not supported for classic Makefile build system",
-    )
     for var in _CMD_ARGS_FOR_BUILD:
         make_args += xml_to_make_variable(case, var)
 
@@ -755,10 +755,12 @@ def _build_libraries(
     else:
         libs = ["gptl", "mct", "pio", "csm_share"]
 
+    libs.append("FTorch")
+
     if mpilib == "mpi-serial":
         libs.insert(0, mpilib)
 
-    if uses_kokkos(case):
+    if uses_kokkos(case) and comp_interface != "nuopc":
         libs.append("kokkos")
 
     # Build shared code of CDEPS nuopc data models
@@ -774,7 +776,9 @@ def _build_libraries(
 
     files = Files(comp_interface=comp_interface)
     for lib in libs:
-        build_script[lib] = files.get_value("BUILD_LIB_FILE", {"lib": lib})
+        build_script[lib] = files.get_value(
+            "BUILD_LIB_FILE", {"lib": lib}, attribute_required=True
+        )
 
     sharedlibroot = os.path.abspath(case.get_value("SHAREDLIBROOT"))
     # Check if we need to build our own cprnc
@@ -806,22 +810,25 @@ def _build_libraries(
         else:
             full_lib_path = os.path.join(sharedlibroot, sharedpath, lib)
 
-        # pio build creates its own directory
-        if lib != "pio" and not os.path.isdir(full_lib_path):
-            os.makedirs(full_lib_path)
-
-        file_build = os.path.join(exeroot, "{}.bldlog.{}".format(lib, lid))
         if lib in build_script.keys():
             my_file = build_script[lib]
         else:
             my_file = os.path.join(
                 cimeroot, "CIME", "build_scripts", "buildlib.{}".format(lib)
             )
-        expect(
-            os.path.exists(my_file),
-            "Build script {} for component {} not found.".format(my_file, lib),
-        )
+        if not my_file:
+            continue
+        if not os.path.exists(my_file):
+            logger.warning(
+                "Build script {} for component {} not found.".format(my_file, lib)
+            )
+            continue
+
+        file_build = os.path.join(exeroot, "{}.bldlog.{}".format(lib, lid))
         logger.info("Building {} with output to file {}".format(lib, file_build))
+        # pio build creates its own directory
+        if lib != "pio" and not os.path.isdir(full_lib_path):
+            os.makedirs(full_lib_path)
 
         run_sub_or_cmd(
             my_file,
